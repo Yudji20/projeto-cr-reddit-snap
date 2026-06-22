@@ -1,0 +1,48 @@
+{
+  "title": {
+    "file": "data\\raw\\soc-redditHyperlinks-title.tsv",
+    "size_bytes": 249282560,
+    "size_mb": 237.73,
+    "columns": [
+      "SOURCE_SUBREDDIT",
+      "TARGET_SUBREDDIT",
+      "POST_ID",
+      "TIMESTAMP",
+      "LINK_SENTIMENT",
+      "PROPERTIES"
+    ],
+    "rows": 384915,
+    "unique_source_subreddits": 32922,
+    "unique_target_subreddits": 20498,
+    "unique_total_subreddits": 40964,
+    "sentiment_counts": {
+      "-1": 41107,
+      "1": 343808
+    },
+    "min_timestamp": "2013-12-31 16:20:20",
+    "max_timestamp": "2017-04-29 07:33:59"
+  },
+  "body": {
+    "file": "data\\raw\\soc-redditHyperlinks-body.tsv",
+    "size_bytes": 318931394,
+    "size_mb": 304.16,
+    "columns": [
+      "SOURCE_SUBREDDIT",
+      "TARGET_SUBREDDIT",
+      "POST_ID",
+      "TIMESTAMP",
+      "LINK_SENTIMENT",
+      "PROPERTIES"
+    ],
+    "rows": 286561,
+    "unique_source_subreddits": 27863,
+    "unique_target_subreddits": 20606,
+    "unique_total_subreddits": 35776,
+    "sentiment_counts": {
+      "-1": 21070,
+      "1": 265491
+    },
+    "min_timestamp": "2013-12-31 16:39:58",
+    "max_timestamp": "2017-04-30 16:58:21"
+  }
+}

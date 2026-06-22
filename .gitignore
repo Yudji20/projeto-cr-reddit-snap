@@ -1,0 +1,14 @@
+.agents/
+.codex/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Keep the public repository lean: PDFs are local/reference or generated files.
+*.pdf
+
+# SNAP raw data files are larger than GitHub's 100 MB Git limit.
+Projeto_CR/data/raw/*.tsv
+Projeto_CR/data/raw/*.tsv.gz

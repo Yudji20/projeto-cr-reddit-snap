@@ -1,0 +1,18 @@
+{
+  "full_graph": {
+    "nodes": 40964,
+    "edges": 163785,
+    "weak_components": 595,
+    "largest_weak_component_nodes": 39710,
+    "strong_components": 30082,
+    "positive_links": 343808,
+    "negative_links": 41107
+  },
+  "visualized_subgraph": {
+    "nodes": 281,
+    "edges": 350,
+    "min_weight": 69,
+    "max_weight": 340,
+    "ego_center": "subredditdrama"
+  }
+}

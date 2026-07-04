@@ -1,0 +1,402 @@
+{
+  "full_graph": {
+    "nodes": 40964,
+    "edges": 163785,
+    "density": 9.760678590003568e-05,
+    "reciprocity": 0.12092682480080594,
+    "weak_components": {
+      "count": 595,
+      "largest_size": 39710,
+      "largest_share": 0.9693877551020408
+    },
+    "strong_components": {
+      "count": 30082,
+      "largest_size": 10766,
+      "largest_share": 0.2628161312371839
+    },
+    "avg_in_degree": 3.998266770823162,
+    "avg_out_degree": 3.998266770823162,
+    "avg_weighted_in_strength": 9.396421247925007,
+    "avg_weighted_out_strength": 9.396421247925007,
+    "positive_links": 343808,
+    "negative_links": 41107,
+    "top_in_strength": [
+      {
+        "subreddit": "askreddit",
+        "in_strength": 13525.0
+      },
+      {
+        "subreddit": "iama",
+        "in_strength": 7516.0
+      },
+      {
+        "subreddit": "pics",
+        "in_strength": 7147.0
+      },
+      {
+        "subreddit": "todayilearned",
+        "in_strength": 6333.0
+      },
+      {
+        "subreddit": "funny",
+        "in_strength": 6290.0
+      },
+      {
+        "subreddit": "worldnews",
+        "in_strength": 5505.0
+      },
+      {
+        "subreddit": "videos",
+        "in_strength": 5401.0
+      },
+      {
+        "subreddit": "news",
+        "in_strength": 4043.0
+      },
+      {
+        "subreddit": "adviceanimals",
+        "in_strength": 3590.0
+      },
+      {
+        "subreddit": "wtf",
+        "in_strength": 3472.0
+      }
+    ],
+    "top_out_strength": [
+      {
+        "subreddit": "subredditdrama",
+        "out_strength": 19249.0
+      },
+      {
+        "subreddit": "bestof",
+        "out_strength": 16105.0
+      },
+      {
+        "subreddit": "titlegore",
+        "out_strength": 6957.0
+      },
+      {
+        "subreddit": "shitredditsays",
+        "out_strength": 5120.0
+      },
+      {
+        "subreddit": "shitpost",
+        "out_strength": 4389.0
+      },
+      {
+        "subreddit": "switcharoo",
+        "out_strength": 4274.0
+      },
+      {
+        "subreddit": "circlebroke2",
+        "out_strength": 3659.0
+      },
+      {
+        "subreddit": "shitamericanssay",
+        "out_strength": 3468.0
+      },
+      {
+        "subreddit": "shitstatistssay",
+        "out_strength": 3128.0
+      },
+      {
+        "subreddit": "fitnesscirclejerk",
+        "out_strength": 2540.0
+      }
+    ],
+    "top_total_strength": [
+      {
+        "subreddit": "subredditdrama",
+        "total_strength": 21182.0
+      },
+      {
+        "subreddit": "bestof",
+        "total_strength": 16892.0
+      },
+      {
+        "subreddit": "askreddit",
+        "total_strength": 13525.0
+      },
+      {
+        "subreddit": "iama",
+        "total_strength": 7518.0
+      },
+      {
+        "subreddit": "pics",
+        "total_strength": 7323.0
+      },
+      {
+        "subreddit": "todayilearned",
+        "total_strength": 7251.0
+      },
+      {
+        "subreddit": "titlegore",
+        "total_strength": 6970.0
+      },
+      {
+        "subreddit": "funny",
+        "total_strength": 6954.0
+      },
+      {
+        "subreddit": "worldnews",
+        "total_strength": 5707.0
+      },
+      {
+        "subreddit": "shitredditsays",
+        "total_strength": 5626.0
+      }
+    ],
+    "top_edges": [
+      {
+        "source": "moronicmondayandroid",
+        "target": "android",
+        "weight": 340,
+        "positive": 340,
+        "negative": 0
+      },
+      {
+        "source": "goodshibe",
+        "target": "dogecoin",
+        "weight": 286,
+        "positive": 286,
+        "negative": 0
+      },
+      {
+        "source": "evenwithcontext",
+        "target": "askreddit",
+        "weight": 214,
+        "positive": 142,
+        "negative": 72
+      },
+      {
+        "source": "titlegore",
+        "target": "todayilearned",
+        "weight": 212,
+        "positive": 212,
+        "negative": 0
+      },
+      {
+        "source": "nightlypick",
+        "target": "hockey",
+        "weight": 208,
+        "positive": 208,
+        "negative": 0
+      },
+      {
+        "source": "drugscirclejerk",
+        "target": "drugs",
+        "weight": 197,
+        "positive": 161,
+        "negative": 36
+      },
+      {
+        "source": "switcharoo",
+        "target": "pics",
+        "weight": 194,
+        "positive": 186,
+        "negative": 8
+      },
+      {
+        "source": "shitredditsays",
+        "target": "funny",
+        "weight": 191,
+        "positive": 169,
+        "negative": 22
+      },
+      {
+        "source": "switcharoo",
+        "target": "funny",
+        "weight": 190,
+        "positive": 178,
+        "negative": 12
+      },
+      {
+        "source": "switcharoo",
+        "target": "wtf",
+        "weight": 188,
+        "positive": 169,
+        "negative": 19
+      }
+    ]
+  },
+  "filtered_graph": {
+    "top_edges_used": 500,
+    "nodes": 357,
+    "edges": 500,
+    "density": 0.0039341579328360556,
+    "reciprocity": 0.016,
+    "weak_components": {
+      "count": 65,
+      "largest_size": 203,
+      "largest_share": 0.5686274509803921
+    },
+    "top_in_strength": [
+      {
+        "subreddit": "askreddit",
+        "in_strength": 3405.0
+      },
+      {
+        "subreddit": "pics",
+        "in_strength": 2055.0
+      },
+      {
+        "subreddit": "todayilearned",
+        "in_strength": 1984.0
+      },
+      {
+        "subreddit": "worldnews",
+        "in_strength": 1807.0
+      },
+      {
+        "subreddit": "funny",
+        "in_strength": 1611.0
+      },
+      {
+        "subreddit": "videos",
+        "in_strength": 1356.0
+      },
+      {
+        "subreddit": "news",
+        "in_strength": 1329.0
+      },
+      {
+        "subreddit": "adviceanimals",
+        "in_strength": 1216.0
+      },
+      {
+        "subreddit": "wtf",
+        "in_strength": 1171.0
+      },
+      {
+        "subreddit": "gaming",
+        "in_strength": 1004.0
+      }
+    ],
+    "top_out_strength": [
+      {
+        "subreddit": "subredditdrama",
+        "out_strength": 7604.0
+      },
+      {
+        "subreddit": "bestof",
+        "out_strength": 5092.0
+      },
+      {
+        "subreddit": "shitpost",
+        "out_strength": 2196.0
+      },
+      {
+        "subreddit": "shitredditsays",
+        "out_strength": 2166.0
+      },
+      {
+        "subreddit": "circlebroke2",
+        "out_strength": 1986.0
+      },
+      {
+        "subreddit": "switcharoo",
+        "out_strength": 1703.0
+      },
+      {
+        "subreddit": "titlegore",
+        "out_strength": 1467.0
+      },
+      {
+        "subreddit": "shitstatistssay",
+        "out_strength": 1180.0
+      },
+      {
+        "subreddit": "shitamericanssay",
+        "out_strength": 1129.0
+      },
+      {
+        "subreddit": "retiredgif",
+        "out_strength": 804.0
+      }
+    ],
+    "top_pagerank": [
+      {
+        "subreddit": "askreddit",
+        "pagerank": 0.035266325987375544
+      },
+      {
+        "subreddit": "smashbros",
+        "pagerank": 0.023736048270173483
+      },
+      {
+        "subreddit": "ssbpm",
+        "pagerank": 0.02201058734004744
+      },
+      {
+        "subreddit": "worldnews",
+        "pagerank": 0.012494543938284294
+      },
+      {
+        "subreddit": "bitcoin",
+        "pagerank": 0.011503995300639256
+      },
+      {
+        "subreddit": "pics",
+        "pagerank": 0.010154471497928516
+      },
+      {
+        "subreddit": "subredditdrama",
+        "pagerank": 0.009032109858003698
+      },
+      {
+        "subreddit": "planetside",
+        "pagerank": 0.008073763765759912
+      },
+      {
+        "subreddit": "bitcoinmarkets",
+        "pagerank": 0.007494007534083761
+      },
+      {
+        "subreddit": "hockey",
+        "pagerank": 0.006514059401919928
+      }
+    ],
+    "top_betweenness": [
+      {
+        "subreddit": "subredditdrama",
+        "betweenness": 633.0
+      },
+      {
+        "subreddit": "bestof",
+        "betweenness": 111.0
+      },
+      {
+        "subreddit": "subredditdramadrama",
+        "betweenness": 110.0
+      },
+      {
+        "subreddit": "bitcoin",
+        "betweenness": 65.0
+      },
+      {
+        "subreddit": "buttcoin",
+        "betweenness": 31.0
+      },
+      {
+        "subreddit": "srssucks",
+        "betweenness": 30.0
+      },
+      {
+        "subreddit": "shitredditsays",
+        "betweenness": 20.0
+      },
+      {
+        "subreddit": "dogecoin",
+        "betweenness": 12.0
+      },
+      {
+        "subreddit": "conspiracy",
+        "betweenness": 9.0
+      },
+      {
+        "subreddit": "smashbros",
+        "betweenness": 9.0
+      }
+    ]
+  }
+}

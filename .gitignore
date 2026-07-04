@@ -12,3 +12,6 @@ __pycache__/
 # SNAP raw data files are larger than GitHub's 100 MB Git limit.
 Projeto_CR/data/raw/*.tsv
 Projeto_CR/data/raw/*.tsv.gz
+
+# Expanded processed data is also too large for regular Git/GitHub.
+Projeto_CR/data/processed/reddit_body_posts_expanded.csv

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reddit SNAP Graph Explorer</title>
+    <link rel="stylesheet" href="./styles.css?v=20260705-layout-2" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-label="Visualizacao completa do grafo">
+        <canvas id="graphCanvas"></canvas>
+        <section id="analysisWorkspace" class="analysis-workspace" hidden>
+          <header class="analysis-header">
+            <div>
+              <span class="eyebrow">Analises filtradas</span>
+              <h2 id="analysisTitle">Camada combined</h2>
+            </div>
+            <div class="analysis-actions">
+              <button id="exportJsonButton" type="button">JSON</button>
+              <button id="exportCsvButton" type="button">CSV</button>
+            </div>
+          </header>
+
+          <div class="analysis-grid">
+            <article class="analysis-card analysis-card-wide">
+              <header>
+                <h3>Distribuicoes estruturais</h3>
+                <span id="distributionMeta">-</span>
+              </header>
+              <canvas id="distributionCanvas"></canvas>
+            </article>
+
+            <article class="analysis-card">
+              <header>
+                <h3>Rede ego</h3>
+                <span id="egoMeta">-</span>
+              </header>
+              <canvas id="egoCanvas"></canvas>
+            </article>
+
+            <article class="analysis-card">
+              <header>
+                <h3>Principais arestas por peso</h3>
+                <span id="topEdgesMeta">-</span>
+              </header>
+              <canvas id="topEdgesCanvas"></canvas>
+            </article>
+          </div>
+        </section>
+        <div id="tooltip" class="tooltip" hidden></div>
+        <div id="loading" class="loading">
+          <strong>Carregando grafo completo</strong>
+          <span>Preparando vertices, arestas e comunidades...</span>
+        </div>
+      </section>
+
+      <aside class="control-panel">
+        <header class="panel-header">
+          <span class="eyebrow">Reddit SNAP</span>
+          <h1>Mapa de comunidades</h1>
+        </header>
+
+        <nav class="mode-tabs" aria-label="Modo de visualizacao">
+          <button id="mapModeButton" class="active" type="button">Mapa</button>
+          <button id="analysisModeButton" type="button">Analises</button>
+        </nav>
+
+        <section class="stats-grid" aria-label="Metricas globais">
+          <div>
+            <span id="statNodes">-</span>
+            <small>vertices</small>
+          </div>
+          <div>
+            <span id="statEdges">-</span>
+            <small>arestas</small>
+          </div>
+          <div>
+            <span id="statCommunities">-</span>
+            <small>comunidades</small>
+          </div>
+          <div>
+            <span id="statLayer">combined</span>
+            <small>camada</small>
+          </div>
+        </section>
+
+        <section class="controls" aria-label="Controles do grafo">
+          <label>
+            Camada
+            <select id="layerSelect">
+              <option value="combined">title + body</option>
+              <option value="title">title</option>
+              <option value="body">body</option>
+            </select>
+          </label>
+
+          <label>
+            Sinal
+            <select id="sentimentSelect">
+              <option value="all">todos</option>
+              <option value="positive">positivo/neutro</option>
+              <option value="negative">negativo</option>
+            </select>
+          </label>
+
+          <label>
+            Peso minimo
+            <input id="weightInput" type="range" min="1" max="80" value="1" />
+            <output id="weightOutput">1</output>
+          </label>
+
+          <div class="toggle-row">
+            <label><input id="edgesToggle" type="checkbox" /> arestas</label>
+            <label><input id="labelsToggle" type="checkbox" checked /> rotulos</label>
+          </div>
+
+          <label>
+            Buscar subreddit
+            <input id="searchInput" type="search" placeholder="ex.: askreddit" />
+          </label>
+
+          <label>
+            Top arestas
+            <input id="topEdgesInput" type="range" min="50" max="700" step="50" value="250" />
+            <output id="topEdgesOutput">250</output>
+          </label>
+
+          <div class="button-row">
+            <button id="searchButton" type="button">Buscar</button>
+            <button id="fitButton" type="button">Recentralizar</button>
+          </div>
+
+          <button id="runAnalysisButton" type="button">Gerar analises</button>
+        </section>
+
+        <section class="selection" aria-live="polite">
+          <h2>Selecao</h2>
+          <div id="selectionPanel" class="selection-body">
+            Passe o mouse sobre um ponto ou busque um subreddit.
+          </div>
+        </section>
+
+        <section class="communities">
+          <h2>Maiores comunidades</h2>
+          <div id="communityList" class="community-list"></div>
+        </section>
+      </aside>
+    </main>
+
+    <script src="./app.js?v=20260705-analysis-3"></script>
+  </body>
+</html>

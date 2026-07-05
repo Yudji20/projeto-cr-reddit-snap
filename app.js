@@ -2,7 +2,7 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260705-layout-1";
+const ASSET_VERSION = "20260705-influence-1";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
@@ -22,6 +22,9 @@ const els = {
   statCommunities: document.getElementById("statCommunities"),
   statLayer: document.getElementById("statLayer"),
   layerSelect: document.getElementById("layerSelect"),
+  layoutModeSelect: document.getElementById("layoutModeSelect"),
+  influenceSelect: document.getElementById("influenceSelect"),
+  influenceLegend: document.getElementById("influenceLegend"),
   sentimentSelect: document.getElementById("sentimentSelect"),
   weightInput: document.getElementById("weightInput"),
   weightOutput: document.getElementById("weightOutput"),
@@ -45,6 +48,10 @@ const state = {
   communities: [],
   nodeById: new Map(),
   layer: "combined",
+  layoutMode: "communities",
+  influenceMode: "default",
+  influenceComputedFor: "",
+  influenceMax: { popularity: 1, bridge: 1, combined: 1 },
   sentiment: "all",
   minWeight: 1,
   showEdges: false,
@@ -72,6 +79,63 @@ const pct = new Intl.NumberFormat("pt-BR", {
 
 function formatNumber(value) {
   return fmt.format(Math.round(value || 0));
+}
+
+function hashString(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function normalizedHash(value, salt = "") {
+  return hashString(`${salt}:${value}`) / 4294967295;
+}
+
+function getNodeX(node) {
+  return state.layoutMode === "dispersed" ? node.scatterX : node.x;
+}
+
+function getNodeY(node) {
+  return state.layoutMode === "dispersed" ? node.scatterY : node.y;
+}
+
+function currentBounds() {
+  if (state.layoutMode !== "dispersed") return state.data?.meta.bounds;
+  return state.scatterBounds;
+}
+
+function influenceRatio(node, key) {
+  return Math.min(1, (node[key] || 0) / Math.max(1, state.influenceMax[key.replace("Score", "")] || 1));
+}
+
+function nodeVisualColor(node) {
+  if (state.influenceMode === "popularity") return "#2563eb";
+  if (state.influenceMode === "bridge") return "#d97706";
+  if (state.influenceMode === "combined") {
+    const bridge = influenceRatio(node, "bridgeScore");
+    const popularity = influenceRatio(node, "popularityScore");
+    if (bridge >= 0.48 && popularity >= 0.42) return "#7c3aed";
+    if (bridge > popularity) return "#d97706";
+    return "#2563eb";
+  }
+  return node.color;
+}
+
+function nodeVisualRadius(node) {
+  if (state.influenceMode === "default") {
+    return Math.max(1.25, Math.min(9, node.size * Math.sqrt(state.transform.scale) * 0.22));
+  }
+  const key = state.influenceMode === "popularity"
+    ? "popularityScore"
+    : state.influenceMode === "bridge"
+      ? "bridgeScore"
+      : "combinedScore";
+  const score = influenceRatio(node, key);
+  const base = 1.15 + 8.8 * Math.sqrt(score);
+  return Math.max(1.15, Math.min(11, base * Math.sqrt(state.transform.scale)));
 }
 
 function worldToScreen(x, y) {
@@ -110,6 +174,10 @@ function fitToGraph(bounds = state.data?.meta.bounds) {
   draw();
 }
 
+function fitToCurrentLayout() {
+  fitToGraph(currentBounds());
+}
+
 function edgeVisible(edge) {
   if (edge.w < state.minWeight) return false;
   if (state.sentiment === "negative") return edge.n > edge.p;
@@ -117,13 +185,130 @@ function edgeVisible(edge) {
   return true;
 }
 
+function prepareScatterLayout() {
+  const bounds = state.data?.meta.bounds || { minX: -210, maxX: 210, minY: -210, maxY: 210 };
+  const spread = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 420);
+  const radius = spread * 0.52;
+  const scatterBounds = {
+    minX: Infinity,
+    maxX: -Infinity,
+    minY: Infinity,
+    maxY: -Infinity,
+  };
+
+  for (const node of state.nodes) {
+    const angle = normalizedHash(node.id, "angle") * Math.PI * 2;
+    const distance = radius * Math.sqrt(normalizedHash(node.id, "distance"));
+    const jitter = (normalizedHash(node.id, "jitter") - 0.5) * 6;
+    node.scatterX = Math.cos(angle) * (distance + jitter);
+    node.scatterY = Math.sin(angle) * (distance - jitter);
+    scatterBounds.minX = Math.min(scatterBounds.minX, node.scatterX);
+    scatterBounds.maxX = Math.max(scatterBounds.maxX, node.scatterX);
+    scatterBounds.minY = Math.min(scatterBounds.minY, node.scatterY);
+    scatterBounds.maxY = Math.max(scatterBounds.maxY, node.scatterY);
+  }
+  state.scatterBounds = scatterBounds;
+}
+
+function resetInfluenceMetrics() {
+  for (const node of state.nodes) {
+    node.popularityScore = 0;
+    node.bridgeScore = 0;
+    node.combinedScore = 0;
+    node.bridgeWeight = 0;
+    node.bridgeCommunityCount = 0;
+  }
+  state.influenceMax = { popularity: 1, bridge: 1, combined: 1 };
+  state.influenceComputedFor = "";
+}
+
+function computeInfluenceMetrics() {
+  if (!state.edges.length) {
+    resetInfluenceMetrics();
+    return;
+  }
+  const signature = `${state.layer}:${state.sentiment}:${state.minWeight}:${state.edges.length}`;
+  if (state.influenceComputedFor === signature) return;
+
+  const bridgeCommunities = new Map();
+  for (const node of state.nodes) {
+    node.popularityScore = 0;
+    node.bridgeScore = 0;
+    node.combinedScore = 0;
+    node.bridgeWeight = 0;
+    node.bridgeCommunityCount = 0;
+    bridgeCommunities.set(node.id, new Set());
+  }
+
+  for (const edge of state.edges) {
+    if (!edgeVisible(edge)) continue;
+    const source = state.nodes[edge.s];
+    const target = state.nodes[edge.t];
+    if (!source || !target) continue;
+
+    source.popularityScore += edge.w;
+    target.popularityScore += edge.w;
+
+    if (source.community !== target.community) {
+      source.bridgeWeight += edge.w;
+      target.bridgeWeight += edge.w;
+      bridgeCommunities.get(source.id)?.add(target.community);
+      bridgeCommunities.get(target.id)?.add(source.community);
+    }
+  }
+
+  let maxPopularity = 1;
+  let maxBridge = 1;
+  for (const node of state.nodes) {
+    node.bridgeCommunityCount = bridgeCommunities.get(node.id)?.size || 0;
+    node.bridgeScore = node.bridgeWeight * (1 + Math.log1p(node.bridgeCommunityCount));
+    maxPopularity = Math.max(maxPopularity, node.popularityScore);
+    maxBridge = Math.max(maxBridge, node.bridgeScore);
+  }
+
+  for (const node of state.nodes) {
+    const popularityRatio = node.popularityScore / maxPopularity;
+    const bridgeRatio = node.bridgeScore / maxBridge;
+    node.combinedScore = Math.sqrt(popularityRatio * bridgeRatio);
+  }
+
+  state.influenceMax = { popularity: maxPopularity, bridge: maxBridge, combined: 1 };
+  state.influenceComputedFor = signature;
+}
+
+function updateInfluenceLegend() {
+  if (!els.influenceLegend) return;
+  const labels = {
+    default: "Cor original por sentimento; tamanho por força/PageRank.",
+    popularity: "Azul maior = mais peso recebido/enviado no filtro atual.",
+    bridge: "Laranja maior = mais conexões entre comunidades diferentes.",
+    combined: "Roxo = alto peso e alta conexão entre comunidades.",
+  };
+  els.influenceLegend.textContent = labels[state.influenceMode];
+}
+
+async function refreshInfluenceView({ refit = false } = {}) {
+  if (state.layoutMode === "dispersed" || state.influenceMode !== "default") {
+    if (!state.edges.length) state.edges = await loadEdges(state.layer);
+    computeInfluenceMetrics();
+  }
+  updateInfluenceLegend();
+  if (refit) fitToCurrentLayout();
+  draw();
+}
+
 function drawEdges() {
   if (!state.showEdges) return;
   const edges = state.edges;
   const nodes = state.nodes;
   ctx.save();
-  ctx.lineWidth = Math.max(0.18, Math.min(1.2, state.transform.scale * 0.015));
-  ctx.globalAlpha = state.dragging ? 0.035 : 0.07;
+  const dispersed = state.layoutMode === "dispersed";
+  ctx.lineWidth = dispersed
+    ? Math.max(0.45, Math.min(2.4, state.transform.scale * 0.045))
+    : Math.max(0.18, Math.min(1.2, state.transform.scale * 0.015));
+  ctx.globalAlpha = state.dragging
+    ? (dispersed ? 0.08 : 0.035)
+    : (dispersed ? 0.22 : 0.07);
 
   let drawn = 0;
   const maxDuringDrag = 55000;
@@ -133,8 +318,8 @@ function drawEdges() {
     const s = nodes[edge.s];
     const t = nodes[edge.t];
     if (!s || !t) continue;
-    const a = worldToScreen(s.x, s.y);
-    const b = worldToScreen(t.x, t.y);
+    const a = worldToScreen(getNodeX(s), getNodeY(s));
+    const b = worldToScreen(getNodeX(t), getNodeY(t));
     if (
       (a.x < -30 && b.x < -30) ||
       (a.x > state.width + 30 && b.x > state.width + 30) ||
@@ -143,7 +328,9 @@ function drawEdges() {
     ) {
       continue;
     }
-    ctx.strokeStyle = edge.n > edge.p ? "rgba(220,53,88,0.35)" : "rgba(65,96,174,0.28)";
+    ctx.strokeStyle = edge.n > edge.p
+      ? (dispersed ? "rgba(220,53,88,0.72)" : "rgba(220,53,88,0.35)")
+      : (dispersed ? "rgba(50,84,170,0.62)" : "rgba(65,96,174,0.28)");
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
@@ -154,6 +341,7 @@ function drawEdges() {
 }
 
 function drawCommunities() {
+  if (state.layoutMode !== "communities") return;
   const compact = state.width < 760 || state.height < 460;
   const limit = state.showLabels ? (compact ? 4 : 10) : 6;
   ctx.save();
@@ -183,15 +371,15 @@ function drawCommunities() {
 function drawNodes() {
   ctx.save();
   for (const node of state.nodes) {
-    if (state.selectedCommunity !== null && node.community !== state.selectedCommunity) {
+    if (state.layoutMode === "communities" && state.selectedCommunity !== null && node.community !== state.selectedCommunity) {
       ctx.globalAlpha = 0.16;
     } else {
       ctx.globalAlpha = 0.78;
     }
-    const p = worldToScreen(node.x, node.y);
+    const p = worldToScreen(getNodeX(node), getNodeY(node));
     if (p.x < -20 || p.x > state.width + 20 || p.y < -20 || p.y > state.height + 20) continue;
-    const radius = Math.max(1.25, Math.min(9, node.size * Math.sqrt(state.transform.scale) * 0.22));
-    ctx.fillStyle = node.color;
+    const radius = nodeVisualRadius(node);
+    ctx.fillStyle = nodeVisualColor(node);
     ctx.beginPath();
     ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
     ctx.fill();
@@ -211,18 +399,21 @@ function drawNodes() {
 function drawFocusLinks() {
   if (!state.selectedNode) return;
   const selectedIndex = state.nodes.indexOf(state.selectedNode);
-  const selected = worldToScreen(state.selectedNode.x, state.selectedNode.y);
+  const selected = worldToScreen(getNodeX(state.selectedNode), getNodeY(state.selectedNode));
   ctx.save();
-  ctx.lineWidth = 1.4;
-  ctx.globalAlpha = 0.75;
+  const dispersed = state.layoutMode === "dispersed";
+  ctx.lineWidth = dispersed ? 2.2 : 1.4;
+  ctx.globalAlpha = dispersed ? 0.92 : 0.75;
   let drawn = 0;
   for (const edge of state.edges) {
     if (drawn > 420) break;
     if (!edgeVisible(edge)) continue;
     if (edge.s !== selectedIndex && edge.t !== selectedIndex) continue;
     const other = state.nodes[edge.s === selectedIndex ? edge.t : edge.s];
-    const p = worldToScreen(other.x, other.y);
-    ctx.strokeStyle = edge.n > edge.p ? "rgba(220,53,88,0.72)" : "rgba(65,96,174,0.64)";
+    const p = worldToScreen(getNodeX(other), getNodeY(other));
+    ctx.strokeStyle = edge.n > edge.p
+      ? (dispersed ? "rgba(220,53,88,0.92)" : "rgba(220,53,88,0.72)")
+      : (dispersed ? "rgba(37,99,235,0.88)" : "rgba(65,96,174,0.64)");
     ctx.beginPath();
     ctx.moveTo(selected.x, selected.y);
     ctx.lineTo(p.x, p.y);
@@ -247,8 +438,8 @@ function nearestNode(screenX, screenY) {
   let best = null;
   let bestDistance = Infinity;
   for (const node of state.nodes) {
-    if (state.selectedCommunity !== null && node.community !== state.selectedCommunity) continue;
-    const p = worldToScreen(node.x, node.y);
+    if (state.layoutMode === "communities" && state.selectedCommunity !== null && node.community !== state.selectedCommunity) continue;
+    const p = worldToScreen(getNodeX(node), getNodeY(node));
     const dx = p.x - screenX;
     const dy = p.y - screenY;
     const distance = dx * dx + dy * dy;
@@ -262,6 +453,14 @@ function nearestNode(screenX, screenY) {
 }
 
 function nodeDetails(node) {
+  const influenceDetails = state.influenceComputedFor
+    ? `
+    <div class="metric-line"><span>popularidade filtrada</span><strong>${formatNumber(node.popularityScore)}</strong></div>
+    <div class="metric-line"><span>peso ponte</span><strong>${formatNumber(node.bridgeWeight)}</strong></div>
+    <div class="metric-line"><span>comunidades ponte</span><strong>${formatNumber(node.bridgeCommunityCount)}</strong></div>
+    <div class="metric-line"><span>influencia mista</span><strong>${pct.format(node.combinedScore || 0)}</strong></div>
+  `
+    : "";
   return `
     <strong>${node.id}</strong>
     <div class="metric-line"><span>comunidade</span><strong>${node.communityLabel}</strong></div>
@@ -271,13 +470,14 @@ function nodeDetails(node) {
     <div class="metric-line"><span>saida</span><strong>${formatNumber(node.outStrength)}</strong></div>
     <div class="metric-line"><span>PageRank</span><strong>${node.pagerank.toFixed(6)}</strong></div>
     <div class="metric-line"><span>negatividade</span><strong>${pct.format(node.negativeShare)}</strong></div>
+    ${influenceDetails}
   `;
 }
 
 function setSelectedNode(node) {
   state.selectedNode = node;
   if (node) {
-    state.selectedCommunity = node.community;
+    if (state.layoutMode === "communities") state.selectedCommunity = node.community;
     els.selectionPanel.innerHTML = nodeDetails(node);
   } else {
     els.selectionPanel.textContent = "Passe o mouse sobre um ponto ou busque um subreddit.";
@@ -295,6 +495,7 @@ function showTooltip(node, x, y) {
     ${node.communityLabel}<br />
     forca total: ${formatNumber(node.totalStrength)}<br />
     PageRank: ${node.pagerank.toFixed(6)}
+    ${state.influenceComputedFor ? `<br />ponte: ${formatNumber(node.bridgeWeight)}` : ""}
   `;
   tooltip.style.left = `${Math.min(state.width - 292, x + 14)}px`;
   tooltip.style.top = `${Math.min(state.height - 120, y + 14)}px`;
@@ -350,9 +551,11 @@ async function loadEdges(layer) {
 
 async function updateLayer() {
   state.layer = els.layerSelect.value;
-  if (state.showEdges || state.edges.length > 0) {
+  if (state.showEdges || state.edges.length > 0 || state.layoutMode === "dispersed" || state.influenceMode !== "default") {
     state.edges = await loadEdges(state.layer);
   }
+  state.influenceComputedFor = "";
+  computeInfluenceMetrics();
   updateStats();
   if (state.mode === "analysis") runAnalysis();
   draw();
@@ -805,7 +1008,7 @@ function searchNode() {
     return;
   }
   setSelectedNode(node);
-  const p = worldToScreen(node.x, node.y);
+  const p = worldToScreen(getNodeX(node), getNodeY(node));
   state.transform.x += state.width / 2 - p.x;
   state.transform.y += state.height / 2 - p.y;
   state.transform.scale = Math.max(state.transform.scale, 2.2);
@@ -861,14 +1064,28 @@ function attachEvents() {
   });
 
   els.layerSelect.addEventListener("change", updateLayer);
+  els.layoutModeSelect.addEventListener("change", async () => {
+    state.layoutMode = els.layoutModeSelect.value;
+    state.selectedCommunity = null;
+    state.selectedNode = null;
+    await refreshInfluenceView({ refit: true });
+  });
+  els.influenceSelect.addEventListener("change", async () => {
+    state.influenceMode = els.influenceSelect.value;
+    await refreshInfluenceView();
+  });
   els.sentimentSelect.addEventListener("change", () => {
     state.sentiment = els.sentimentSelect.value;
+    state.influenceComputedFor = "";
+    computeInfluenceMetrics();
     if (state.mode === "analysis") runAnalysis();
     draw();
   });
   els.weightInput.addEventListener("input", () => {
     state.minWeight = Number(els.weightInput.value);
     els.weightOutput.textContent = state.minWeight;
+    state.influenceComputedFor = "";
+    computeInfluenceMetrics();
     if (state.mode === "analysis") runAnalysis();
     draw();
   });
@@ -881,6 +1098,8 @@ function attachEvents() {
     state.showEdges = els.edgesToggle.checked;
     if (state.showEdges && state.edges.length === 0) {
       state.edges = await loadEdges(state.layer);
+      state.influenceComputedFor = "";
+      computeInfluenceMetrics();
     }
     draw();
   });
@@ -895,7 +1114,7 @@ function attachEvents() {
   els.fitButton.addEventListener("click", () => {
     state.selectedCommunity = null;
     state.selectedNode = null;
-    fitToGraph();
+    fitToCurrentLayout();
   });
   els.runAnalysisButton.addEventListener("click", () => setMode("analysis"));
   els.mapModeButton.addEventListener("click", () => setMode("map"));
@@ -913,7 +1132,10 @@ async function init() {
   state.nodes = state.data.nodes;
   state.communities = state.data.communities;
   state.nodeById = new Map(state.nodes.map((node) => [node.id, node]));
+  prepareScatterLayout();
+  resetInfluenceMetrics();
   updateStats();
+  updateInfluenceLegend();
   renderCommunities();
   loading.hidden = true;
   loading.classList.add("is-hidden");
@@ -931,6 +1153,8 @@ window.redditGraphApp = {
   getState: () => ({
     mode: state.mode,
     layer: state.layer,
+    layoutMode: state.layoutMode,
+    influenceMode: state.influenceMode,
     sentiment: state.sentiment,
     minWeight: state.minWeight,
     topEdgesLimit: state.topEdgesLimit,

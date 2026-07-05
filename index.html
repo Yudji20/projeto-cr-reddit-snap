@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Reddit SNAP Graph Explorer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705-layout-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260705-influence-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -96,6 +96,25 @@
           </label>
 
           <label>
+            Visao
+            <select id="layoutModeSelect">
+              <option value="communities">comunidades</option>
+              <option value="dispersed">dispersa</option>
+            </select>
+          </label>
+
+          <label>
+            Destaque
+            <select id="influenceSelect">
+              <option value="default">padrao</option>
+              <option value="popularity">popularidade</option>
+              <option value="bridge">ponte</option>
+              <option value="combined">influencia mista</option>
+            </select>
+          </label>
+          <div id="influenceLegend" class="influence-legend"></div>
+
+          <label>
             Sinal
             <select id="sentimentSelect">
               <option value="all">todos</option>
@@ -148,6 +167,6 @@
       </aside>
     </main>
 
-    <script src="./app.js?v=20260705-analysis-3"></script>
+    <script src="./app.js?v=20260705-influence-1"></script>
   </body>
 </html>

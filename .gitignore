@@ -15,3 +15,7 @@ Projeto_CR/data/raw/*.tsv.gz
 
 # Expanded processed data is also too large for regular Git/GitHub.
 Projeto_CR/data/processed/reddit_body_posts_expanded.csv
+Projeto_CR/data/processed/*.duckdb
+
+# Local server/runtime logs.
+*.log

@@ -1,0 +1,289 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R 8 0 R 10 0 R 12 0 R 14 0 R] /Count 5 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Length 4222 >>
+stream
+BT /F2 16 Tf 54 790 Td (Relatorio tecnico - SaaS de analise da rede Reddit SNAP) Tj ET
+BT /F2 13 Tf 54 756 Td (Universidade Federal do ABC) Tj ET
+BT /F1 10 Tf 54 738 Td (Disciplina: BCM0506 - Comunicacao e Redes - 2026.2) Tj ET
+BT /F1 10 Tf 54 724 Td (Projeto: Analise de Redes Complexas no Reddit: comunidades-ponte e influencia entre) Tj ET
+BT /F1 10 Tf 54 710 Td (subreddits) Tj ET
+BT /F1 10 Tf 54 696 Td (Data: 06/07/2026) Tj ET
+BT /F1 10 Tf 54 682 Td (Artefato analisado: `Projeto_CR/app/visualization/index.html`) Tj ET
+BT /F2 13 Tf 54 661 Td (Resumo) Tj ET
+BT /F1 10 Tf 54 636 Td (Este relatorio apresenta a versao atual do SaaS local desenvolvido para explorar a rede) Tj ET
+BT /F1 10 Tf 54 622 Td (Reddit Hyperlink Network da SNAP. A aplicacao transforma os dados de hyperlinks entre) Tj ET
+BT /F1 10 Tf 54 608 Td (subreddits em uma visualizacao interativa de grafo dirigido, ponderado e assinado por) Tj ET
+BT /F1 10 Tf 54 594 Td (sentimento. O objetivo e apoiar a pergunta principal do projeto: quais subreddits funcionam) Tj ET
+BT /F1 10 Tf 54 580 Td (como pontes entre comunidades e como essa estrutura aparece nas camadas `title`, `body` e) Tj ET
+BT /F1 10 Tf 54 566 Td (`combined`. A versao analisada integra 57.559 vertices, 274.698 arestas agregadas e 701) Tj ET
+BT /F1 10 Tf 54 552 Td (comunidades detectadas, permitindo filtros por camada, sinal, peso minimo, busca por) Tj ET
+BT /F1 10 Tf 54 538 Td (subreddit, visualizacao de comunidades, rede ego e exportacao de resultados.) Tj ET
+BT /F1 10 Tf 54 517 Td (Palavras-chave: redes complexas; Reddit; SNAP; grafos dirigidos; centralidade; comunidades;) Tj ET
+BT /F1 10 Tf 54 503 Td (SaaS.) Tj ET
+BT /F2 13 Tf 54 482 Td (1. Introducao) Tj ET
+BT /F1 10 Tf 54 457 Td (O projeto investiga a rede de hyperlinks entre subreddits a partir da base publica SNAP) Tj ET
+BT /F1 10 Tf 54 443 Td (Reddit Hyperlink Network. Cada subreddit e modelado como vertice e cada hyperlink de um) Tj ET
+BT /F1 10 Tf 54 429 Td (subreddit para outro e modelado como aresta dirigida. Quando ha multiplos hyperlinks entre o) Tj ET
+BT /F1 10 Tf 54 415 Td (mesmo par origem-destino, essas ocorrencias sao agregadas em um peso.) Tj ET
+BT /F1 10 Tf 54 394 Td (A proposta revisada substituiu a coleta direta pela API do Reddit pela base SNAP. Essa) Tj ET
+BT /F1 10 Tf 54 380 Td (decisao reduziu riscos de autenticacao, limites de requisicao e incompletude dos dados,) Tj ET
+BT /F1 10 Tf 54 366 Td (mantendo a pergunta cientifica central. O SaaS local foi criado como uma camada demonstravel) Tj ET
+BT /F1 10 Tf 54 352 Td (para navegar pelos resultados, aproximando a analise estatistica do grafo de uma experiencia) Tj ET
+BT /F1 10 Tf 54 338 Td (visual adequada para apresentacao em aula.) Tj ET
+BT /F2 13 Tf 54 317 Td (2. Alinhamento com as aulas) Tj ET
+BT /F1 10 Tf 54 292 Td (O relatorio segue o formato academico compacto demonstrado nos trabalhos da Aula 1: titulo,) Tj ET
+BT /F1 10 Tf 54 278 Td (resumo, introducao, fundamentacao, metodologia, resultados, discussao e referencias.) Tj ET
+BT /F1 10 Tf 54 257 Td (Os conteudos das aulas foram usados da seguinte forma:) Tj ET
+BT /F1 10 Tf 54 236 Td (Aula | Conteudo usado | Aplicacao no projeto) Tj ET
+BT /F1 10 Tf 54 222 Td (Aula 1 | proposta, escopo e estrutura de trabalho | organizacao do relatorio e) Tj ET
+BT /F1 10 Tf 54 208 Td (justificativa do problema) Tj ET
+BT /F1 10 Tf 54 194 Td (Aula 2 | redes como vertices e arestas; propriedades estatisticas | definicao da) Tj ET
+BT /F1 10 Tf 54 180 Td (rede Reddit e leitura de grau, caminhos e distribuicoes) Tj ET
+BT /F1 10 Tf 54 166 Td (Aula 3 | teoria dos grafos; grafo `G = \(V, E\)`; direcao e caminhos | modelagem) Tj ET
+BT /F1 10 Tf 54 152 Td (subreddit -> subreddit e interpretacao de arestas dirigidas) Tj ET
+BT /F1 10 Tf 54 138 Td (Aula 4 | grafos dirigidos, ponderados e alternativa bipartida | escolha da rede) Tj ET
+BT /F1 10 Tf 54 124 Td (projetada entre subreddits e discussao de alternativas) Tj ET
+BT /F1 10 Tf 54 110 Td (Aula 5 | vizinhanca, busca e rede ego | ferramenta de rede ego para analisar um) Tj ET
+BT /F1 10 Tf 54 96 Td (subreddit central) Tj ET
+BT /F1 10 Tf 54 82 Td (Aula 6 | centralidades: grau, forca, intermediacao, proximidade e PageRank |) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 5 0 R >>
+endobj
+7 0 obj
+<< /Length 3727 >>
+stream
+BT /F1 10 Tf 54 790 Td (rankings de hubs, emissores, receptores e possiveis pontes) Tj ET
+BT /F1 10 Tf 54 776 Td (Aulas 7 e 8 | mundo pequeno, grafos aleatorios, leis de potencia e redes sem) Tj ET
+BT /F1 10 Tf 54 762 Td (escala | interpretacao da rede esparsa, desigual e concentrada em poucos hubs) Tj ET
+BT /F2 13 Tf 54 741 Td (3. Dados e modelagem) Tj ET
+BT /F1 10 Tf 54 716 Td (Os dados brutos usados sao os arquivos `soc-redditHyperlinks-title.tsv` e `soc-) Tj ET
+BT /F1 10 Tf 54 702 Td (redditHyperlinks-body.tsv`, baixados em 22/06/2026. A base `title` possui 384.915 hyperlinks) Tj ET
+BT /F1 10 Tf 54 688 Td (e a base `body` possui 286.561 hyperlinks. A versao combinada agrega as duas camadas por par) Tj ET
+BT /F1 10 Tf 54 674 Td (`source -> target`.) Tj ET
+BT /F2 13 Tf 54 653 Td (3.1 Definicao do grafo) Tj ET
+BT /F1 10 Tf 54 628 Td (Formalmente, o grafo e definido como `G = \(V, E\)`, em que:) Tj ET
+BT /F1 10 Tf 54 607 Td (- `V` e o conjunto de subreddits.) Tj ET
+BT /F1 10 Tf 54 593 Td (- `E` e o conjunto de hyperlinks dirigidos entre subreddits.) Tj ET
+BT /F1 10 Tf 54 579 Td (- `weight` representa a quantidade de hyperlinks agregados entre origem e destino.) Tj ET
+BT /F1 10 Tf 54 565 Td (- `positive` e `negative` preservam o sinal original da interacao.) Tj ET
+BT /F1 10 Tf 54 551 Td (- `layer` diferencia links extraidos de titulos, corpos de postagem ou da combinacao dos) Tj ET
+BT /F1 10 Tf 54 537 Td (  dois.) Tj ET
+BT /F1 10 Tf 54 516 Td (Essa modelagem e coerente com a proposta porque a pergunta do projeto nao e sobre usuarios) Tj ET
+BT /F1 10 Tf 54 502 Td (individuais, mas sobre fluxo e influencia entre comunidades.) Tj ET
+BT /F2 13 Tf 54 481 Td (4. SaaS desenvolvido) Tj ET
+BT /F1 10 Tf 54 456 Td (O SaaS atual esta implementado como uma aplicacao web local em) Tj ET
+BT /F1 10 Tf 54 442 Td (`Projeto_CR/app/visualization`. Ele carrega arquivos JSON exportados a partir do banco) Tj ET
+BT /F1 10 Tf 54 428 Td (DuckDB e renderiza a rede em canvas.) Tj ET
+BT /F2 13 Tf 54 407 Td (4.1 Funcionalidades implementadas) Tj ET
+BT /F1 10 Tf 54 382 Td (- Mapa de comunidades para a rede combinada.) Tj ET
+BT /F1 10 Tf 54 368 Td (- Alternancia entre camadas `title`, `body` e `combined`.) Tj ET
+BT /F1 10 Tf 54 354 Td (- Filtro por sinal: todos, positivo/neutro ou negativo.) Tj ET
+BT /F1 10 Tf 54 340 Td (- Filtro por peso minimo da aresta.) Tj ET
+BT /F1 10 Tf 54 326 Td (- Busca por subreddit.) Tj ET
+BT /F1 10 Tf 54 312 Td (- Painel com metricas globais: vertices, arestas, comunidades e camada ativa.) Tj ET
+BT /F1 10 Tf 54 298 Td (- Painel de selecao com comunidade, papel estrutural, forca total, entrada, saida,) Tj ET
+BT /F1 10 Tf 54 284 Td (  PageRank e negatividade.) Tj ET
+BT /F1 10 Tf 54 270 Td (- Destaques por popularidade, ponte e influencia mista.) Tj ET
+BT /F1 10 Tf 54 256 Td (- Aba de analises com distribuicoes estruturais, rede ego e principais arestas por peso.) Tj ET
+BT /F1 10 Tf 54 242 Td (- Exportacao de analises em JSON e CSV.) Tj ET
+BT /F2 13 Tf 54 221 Td (4.2 Arquitetura de dados) Tj ET
+BT /F1 10 Tf 54 196 Td (O pipeline materializa os dados em `Projeto_CR/data/processed/reddit_graph.duckdb` e exporta) Tj ET
+BT /F1 10 Tf 54 182 Td (os ativos do SaaS para:) Tj ET
+BT /F1 10 Tf 54 161 Td (- `app/visualization/public/graph-core.json`) Tj ET
+BT /F1 10 Tf 54 147 Td (- `app/visualization/public/edges-title.json`) Tj ET
+BT /F1 10 Tf 54 133 Td (- `app/visualization/public/edges-body.json`) Tj ET
+BT /F1 10 Tf 54 119 Td (- `app/visualization/public/edges-combined.json`) Tj ET
+BT /F1 10 Tf 54 105 Td (- `app/visualization/public/graph-data-summary.json`) Tj ET
+BT /F1 10 Tf 54 84 Td (O DuckDB armazena as tabelas `edges_raw`, `edges_combined`, `nodes`, `communities`,) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Length 4198 >>
+stream
+BT /F1 10 Tf 54 790 Td (`node_strengths` e `graph_stats`. O frontend consome esses dados sem recalcular as metricas) Tj ET
+BT /F1 10 Tf 54 776 Td (pesadas no navegador.) Tj ET
+BT /F2 13 Tf 54 755 Td (5. Resultados principais) Tj ET
+BT /F2 13 Tf 54 730 Td (5.1 Estatisticas globais) Tj ET
+BT /F1 10 Tf 54 705 Td (Camada | Vertices | Arestas agregadas | Peso total | Positivos/neutros | Negativos) Tj ET
+BT /F1 10 Tf 54 691 Td (| Negativos \(%\) | Comunidades) Tj ET
+BT /F1 10 Tf 54 677 Td (--- | ---: | ---: | ---: | ---: | ---: | ---: | ---:) Tj ET
+BT /F1 10 Tf 54 663 Td (combined | 57.559 | 274.698 | 671.476 | 609.299 | 62.177 | 9,26% | 701) Tj ET
+BT /F1 10 Tf 54 649 Td (title | 40.964 | 163.785 | 384.915 | 343.808 | 41.107 | 10,68% | -) Tj ET
+BT /F1 10 Tf 54 635 Td (body | 35.776 | 137.821 | 286.561 | 265.491 | 21.070 | 7,35% | -) Tj ET
+BT /F1 10 Tf 54 614 Td (A rede combinada e grande e esparsa. O numero de arestas observadas e alto em termos) Tj ET
+BT /F1 10 Tf 54 600 Td (absolutos, mas pequeno diante do total de pares possiveis entre mais de 57 mil subreddits.) Tj ET
+BT /F1 10 Tf 54 586 Td (Esse comportamento e esperado em redes reais: muitos vertices possuem poucas conexoes e) Tj ET
+BT /F1 10 Tf 54 572 Td (poucos vertices concentram grande parte da atividade.) Tj ET
+BT /F2 13 Tf 54 551 Td (5.2 Subreddits com maior forca total) Tj ET
+BT /F1 10 Tf 54 526 Td (Subreddit | Comunidade | Papel | Entrada | Saida | Forca total | PageRank) Tj ET
+BT /F1 10 Tf 54 512 Td (--- | --- | --- | ---: | ---: | ---: | ---:) Tj ET
+BT /F1 10 Tf 54 498 Td (subredditdrama | community_036 | hub | 2.986 | 23.914 | 26.900 | 0,001386) Tj ET
+BT /F1 10 Tf 54 484 Td (askreddit | community_021 | hub | 20.854 | 1.338 | 22.192 | 0,022592) Tj ET
+BT /F1 10 Tf 54 470 Td (bestof | community_021 | emissor | 1.233 | 16.105 | 17.338 | 0,000764) Tj ET
+BT /F1 10 Tf 54 456 Td (iama | community_007 | hub | 11.210 | 1.183 | 12.393 | 0,018799) Tj ET
+BT /F1 10 Tf 54 442 Td (pics | community_021 | hub | 9.926 | 180 | 10.106 | 0,011103) Tj ET
+BT /F1 10 Tf 54 428 Td (todayilearned | community_021 | hub | 8.704 | 918 | 9.622 | 0,006889) Tj ET
+BT /F1 10 Tf 54 414 Td (funny | community_021 | hub | 8.336 | 719 | 9.055 | 0,009467) Tj ET
+BT /F1 10 Tf 54 400 Td (videos | community_021 | hub | 7.847 | 218 | 8.065 | 0,009018) Tj ET
+BT /F1 10 Tf 54 386 Td (worldnews | community_029 | hub | 7.762 | 210 | 7.972 | 0,005751) Tj ET
+BT /F1 10 Tf 54 372 Td (titlegore | community_021 | emissor | 20 | 6.960 | 6.980 | 0,000015) Tj ET
+BT /F1 10 Tf 54 351 Td (O ranking mostra diferencas importantes entre popularidade e emissao. `askreddit`, `iama`,) Tj ET
+BT /F1 10 Tf 54 337 Td (`pics`, `funny` e `videos` recebem muitos links e tambem aparecem com PageRank alto.) Tj ET
+BT /F1 10 Tf 54 323 Td (`subredditdrama`, `bestof` e `titlegore` se destacam pelo peso de saida, indicando papel) Tj ET
+BT /F1 10 Tf 54 309 Td (mais ativo em apontar para outras comunidades.) Tj ET
+BT /F2 13 Tf 54 288 Td (5.3 Subreddits com maior potencial de ponte) Tj ET
+BT /F1 10 Tf 54 263 Td (Para estimar pontes no SaaS, foi calculado o peso das arestas que conectam comunidades) Tj ET
+BT /F1 10 Tf 54 249 Td (diferentes e a quantidade de comunidades distintas alcancadas por cada subreddit.) Tj ET
+BT /F1 10 Tf 54 228 Td (Subreddit | Comunidade | Peso entre comunidades | Comunidades conectadas | Escore) Tj ET
+BT /F1 10 Tf 54 214 Td (de ponte) Tj ET
+BT /F1 10 Tf 54 200 Td (--- | --- | ---: | ---: | ---:) Tj ET
+BT /F1 10 Tf 54 186 Td (subredditdrama | community_036 | 22.177 | 46 | 107.561,72) Tj ET
+BT /F1 10 Tf 54 172 Td (bestof | community_021 | 11.321 | 41 | 53.635,16) Tj ET
+BT /F1 10 Tf 54 158 Td (askreddit | community_021 | 10.647 | 45 | 51.410,54) Tj ET
+BT /F1 10 Tf 54 144 Td (iama | community_007 | 10.080 | 43 | 48.224,63) Tj ET
+BT /F1 10 Tf 54 130 Td (todayilearned | community_021 | 4.952 | 40 | 23.341,61) Tj ET
+BT /F1 10 Tf 54 116 Td (pics | community_021 | 4.350 | 43 | 20.811,22) Tj ET
+BT /F1 10 Tf 54 102 Td (worldnews | community_029 | 4.194 | 37 | 19.450,04) Tj ET
+BT /F1 10 Tf 54 88 Td (gaming | community_024 | 3.968 | 39 | 18.605,47) Tj ET
+BT /F1 10 Tf 54 74 Td (titlegore | community_021 | 3.883 | 43 | 18.577,01) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 9 0 R >>
+endobj
+11 0 obj
+<< /Length 4293 >>
+stream
+BT /F1 10 Tf 54 790 Td (videos | community_021 | 3.833 | 43 | 18.337,80) Tj ET
+BT /F1 10 Tf 54 769 Td (Esse resultado reforca a hipotese da proposta: alguns subreddits nao sao apenas populares;) Tj ET
+BT /F1 10 Tf 54 755 Td (eles tambem atravessam fronteiras entre comunidades. `subredditdrama` e o caso mais forte,) Tj ET
+BT /F1 10 Tf 54 741 Td (pois combina alta saida ponderada com conexoes para muitas comunidades distintas.) Tj ET
+BT /F2 13 Tf 54 720 Td (5.4 Maiores comunidades detectadas) Tj ET
+BT /F1 10 Tf 54 695 Td (ID | Rotulo operacional | Vertices | Peso interno | Top subreddits) Tj ET
+BT /F1 10 Tf 54 681 Td (---: | --- | ---: | ---: | ---) Tj ET
+BT /F1 10 Tf 54 667 Td (21 | popular / memes | 8.655 | 88.245 | askreddit, bestof, pics, todayilearned,) Tj ET
+BT /F1 10 Tf 54 653 Td (funny, videos) Tj ET
+BT /F1 10 Tf 54 639 Td (29 | news / politics | 5.458 | 54.434 | worldnews, news, conspiracy, politics,) Tj ET
+BT /F1 10 Tf 54 625 Td (technology) Tj ET
+BT /F1 10 Tf 54 611 Td (24 | gaming | 4.435 | 32.782 | gaming, pcmasterrace, games, buildapc, techsupport) Tj ET
+BT /F1 10 Tf 54 597 Td (1 | community_001 | 2.917 | 13.871 | motorcycles, bicycling, cars, seattle,) Tj ET
+BT /F1 10 Tf 54 583 Td (assistance) Tj ET
+BT /F1 10 Tf 54 569 Td (5 | sports | 2.748 | 17.197 | science, fitnesscirclejerk, fitness, drugs, space) Tj ET
+BT /F1 10 Tf 54 555 Td (0 | technology | 2.574 | 14.394 | sysadmin, programming, entrepreneur, linux, diy) Tj ET
+BT /F1 10 Tf 54 541 Td (7 | music / media | 2.454 | 12.669 | iama, books, television, episodehub, asoiaf) Tj ET
+BT /F1 10 Tf 54 527 Td (36 | controversial topics | 2.451 | 27.088 | subredditdrama, drama, legaladvice,) Tj ET
+BT /F1 10 Tf 54 513 Td (relationships) Tj ET
+BT /F1 10 Tf 54 492 Td (Os rotulos sao interpretativos e devem ser tratados como apoio visual, nao como) Tj ET
+BT /F1 10 Tf 54 478 Td (classificacao definitiva. Eles foram inferidos a partir dos principais subreddits de cada) Tj ET
+BT /F1 10 Tf 54 464 Td (comunidade.) Tj ET
+BT /F2 13 Tf 54 443 Td (5.5 Arestas mais fortes na rede combinada) Tj ET
+BT /F1 10 Tf 54 418 Td (Origem | Destino | Peso | Positivos/neutros | Negativos | Balanco) Tj ET
+BT /F1 10 Tf 54 404 Td (--- | --- | ---: | ---: | ---: | ---:) Tj ET
+BT /F1 10 Tf 54 390 Td (trendingsubreddits | changelog | 548 | 548 | 0 | 1,0000) Tj ET
+BT /F1 10 Tf 54 376 Td (moronicmondayandroid | android | 340 | 340 | 0 | 1,0000) Tj ET
+BT /F1 10 Tf 54 362 Td (goodshibe | dogecoin | 286 | 286 | 0 | 1,0000) Tj ET
+BT /F1 10 Tf 54 348 Td (streetfighter | sf4 | 279 | 240 | 39 | 0,7204) Tj ET
+BT /F1 10 Tf 54 334 Td (buildapc | buildapcforme | 245 | 244 | 1 | 0,9918) Tj ET
+BT /F1 10 Tf 54 320 Td (mushroomkingdom | gamesale | 243 | 243 | 0 | 1,0000) Tj ET
+BT /F1 10 Tf 54 306 Td (summonerschool | leagueoflegends | 220 | 216 | 4 | 0,9636) Tj ET
+BT /F1 10 Tf 54 292 Td (evenwithcontext | askreddit | 214 | 142 | 72 | 0,3271) Tj ET
+BT /F1 10 Tf 54 271 Td (As arestas mais fortes tendem a aparecer entre comunidades relacionadas por tema ou por) Tj ET
+BT /F1 10 Tf 54 257 Td (pratica recorrente de referencia. A aresta `evenwithcontext -> askreddit` e um caso) Tj ET
+BT /F1 10 Tf 54 243 Td (interessante por apresentar proporcao negativa maior que as demais do ranking.) Tj ET
+BT /F2 13 Tf 54 222 Td (6. Discussao) Tj ET
+BT /F1 10 Tf 54 197 Td (O SaaS torna visivel uma caracteristica central de redes reais: a estrutura nao e homogenea.) Tj ET
+BT /F1 10 Tf 54 183 Td (Ha comunidades muito grandes, como `popular / memes`, `news / politics` e `gaming`, e ha) Tj ET
+BT /F1 10 Tf 54 169 Td (subreddits que funcionam como articuladores entre blocos. A leitura por forca total) Tj ET
+BT /F1 10 Tf 54 155 Td (identifica os vertices de maior volume, enquanto a leitura por ponte destaca vertices que) Tj ET
+BT /F1 10 Tf 54 141 Td (atravessam comunidades.) Tj ET
+BT /F1 10 Tf 54 120 Td (O caso de `subredditdrama` e especialmente relevante. Ele possui a maior forca total na rede) Tj ET
+BT /F1 10 Tf 54 106 Td (combinada e o maior escore de ponte, mas nao possui o maior PageRank. Isso mostra por que a) Tj ET
+BT /F1 10 Tf 54 92 Td (Aula 6 recomenda comparar centralidades em vez de usar apenas uma metrica: grau/forca,) Tj ET
+BT /F1 10 Tf 54 78 Td (PageRank e ponte capturam aspectos diferentes de influencia estrutural.) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 11 0 R >>
+endobj
+13 0 obj
+<< /Length 3296 >>
+stream
+BT /F1 10 Tf 54 790 Td (Tambem e importante separar as camadas. A camada `title` possui maior percentual de links) Tj ET
+BT /F1 10 Tf 54 776 Td (negativos \(10,68%\) que a camada `body` \(7,35%\). Isso sugere que referencias no titulo podem) Tj ET
+BT /F1 10 Tf 54 762 Td (concentrar interacoes mais marcadas, enquanto referencias no corpo sao mais numerosas em) Tj ET
+BT /F1 10 Tf 54 748 Td (alguns contextos, mas proporcionalmente menos negativas.) Tj ET
+BT /F2 13 Tf 54 727 Td (7. Limitacoes) Tj ET
+BT /F1 10 Tf 54 702 Td (- A centralidade mede importancia dentro da modelagem escolhida, nao importancia social) Tj ET
+BT /F1 10 Tf 54 688 Td (  absoluta.) Tj ET
+BT /F1 10 Tf 54 674 Td (- Os rotulos de comunidades sao interpretativos e podem precisar de revisao manual.) Tj ET
+BT /F1 10 Tf 54 660 Td (- A visualizacao completa exige filtros, pois a rede possui dezenas de milhares de) Tj ET
+BT /F1 10 Tf 54 646 Td (  vertices.) Tj ET
+BT /F1 10 Tf 54 632 Td (- O escore de ponte usado no SaaS e uma aproximacao operacional baseada em conexoes) Tj ET
+BT /F1 10 Tf 54 618 Td (  entre comunidades; ele nao substitui uma centralidade de intermediacao calculada em) Tj ET
+BT /F1 10 Tf 54 604 Td (  todos os caminhos do grafo.) Tj ET
+BT /F1 10 Tf 54 590 Td (- A base SNAP cobre um periodo historico especifico e nao representa necessariamente o) Tj ET
+BT /F1 10 Tf 54 576 Td (  Reddit atual.) Tj ET
+BT /F2 13 Tf 54 555 Td (8. Conclusao) Tj ET
+BT /F1 10 Tf 54 530 Td (A versao atual do SaaS cumpre o papel de demonstrar, de forma interativa, a modelagem de) Tj ET
+BT /F1 10 Tf 54 516 Td (redes complexas proposta para o projeto. A aplicacao conecta os conceitos das aulas com um) Tj ET
+BT /F1 10 Tf 54 502 Td (caso real: vertices, arestas dirigidas, pesos, sinais, comunidades, redes ego e) Tj ET
+BT /F1 10 Tf 54 488 Td (centralidades.) Tj ET
+BT /F1 10 Tf 54 467 Td (Os resultados indicam que `subredditdrama`, `bestof`, `askreddit` e `iama` sao vertices) Tj ET
+BT /F1 10 Tf 54 453 Td (centrais para a circulacao entre comunidades, mas por motivos estruturais diferentes.) Tj ET
+BT /F1 10 Tf 54 439 Td (`askreddit` lidera em PageRank, enquanto `subredditdrama` lidera em forca total e escore de) Tj ET
+BT /F1 10 Tf 54 425 Td (ponte. Essa diferenca sera importante para a versao final do relatorio, pois mostra que) Tj ET
+BT /F1 10 Tf 54 411 Td (influencia em redes complexas depende da metrica observada.) Tj ET
+BT /F2 13 Tf 54 390 Td (Referencias) Tj ET
+BT /F1 10 Tf 54 365 Td ([1] J. Leskovec e A. Krevl, "SNAP Datasets: Stanford Large Network Dataset Collection",) Tj ET
+BT /F1 10 Tf 54 351 Td (Stanford University. Disponivel em: https://snap.stanford.edu/data/soc-RedditHyperlinks.html) Tj ET
+BT /F1 10 Tf 54 330 Td ([2] UFABC, "BCM0506 - Comunicacao e Redes: materiais das Aulas 1 a 8", 2026.2.) Tj ET
+BT /F1 10 Tf 54 309 Td ([3] Projeto_CR, `Proposta_Revisada_RedeReddit_SNAP.md`, 22/06/2026.) Tj ET
+BT /F1 10 Tf 54 288 Td ([4] Projeto_CR, `Cronograma_Projeto_Reddit_SNAP.md`, 22/06/2026.) Tj ET
+BT /F1 10 Tf 54 267 Td ([5] Projeto_CR, `Cronograma_Implementacao_SaaS_Grafos.md`, 05/07/2026.) Tj ET
+BT /F1 10 Tf 54 246 Td ([6] Projeto_CR, `reports/duckdb_graph_store_summary.md`, 2026.) Tj ET
+BT /F1 10 Tf 54 225 Td ([7] Projeto_CR, `app/visualization/public/graph-data-summary.json`, 2026.) Tj ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 13 0 R >>
+endobj
+xref
+0 15
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000148 00000 n 
+0000000247 00000 n 
+0000000345 00000 n 
+0000004619 00000 n 
+0000004755 00000 n 
+0000008534 00000 n 
+0000008670 00000 n 
+0000012920 00000 n 
+0000013057 00000 n 
+0000017403 00000 n 
+0000017541 00000 n 
+0000020890 00000 n 
+trailer
+<< /Size 15 /Root 1 0 R >>
+startxref
+21028
+%%EOF

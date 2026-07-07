@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Reddit SNAP Graph Explorer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705-influence-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260706-compare-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -48,6 +48,117 @@
             </article>
           </div>
         </section>
+        <section id="compareWorkspace" class="compare-workspace" hidden>
+          <header class="analysis-header">
+            <div>
+              <span class="eyebrow">Comparacao de modelos</span>
+              <h2 id="compareTitle">Importe redes e compare com o projeto</h2>
+            </div>
+            <div class="analysis-actions">
+              <button id="runCompareButton" type="button">Comparar</button>
+              <button id="clearCompareButton" type="button">Limpar</button>
+            </div>
+          </header>
+
+          <div class="compare-layout">
+            <article class="compare-panel">
+              <header>
+                <h3>1. Importacao dos dados</h3>
+                <span>CSV de arestas ou JSON</span>
+              </header>
+
+              <div class="import-grid">
+                <section class="import-card import-card-project">
+                  <div>
+                    <span class="model-kicker">Projeto</span>
+                    <h4>Rede Reddit atual</h4>
+                    <p>Usa a camada, sinal e peso minimo configurados no painel.</p>
+                  </div>
+                  <label class="compact-field">
+                    Escopo
+                    <select id="compareScopeSelect">
+                      <option value="full">rede completa</option>
+                      <option value="community">comunidade selecionada</option>
+                      <option value="ego">subreddit selecionado/ego</option>
+                    </select>
+                  </label>
+                  <button id="loadProjectCompareButton" type="button">Atualizar projeto</button>
+                  <span id="projectImportStatus" class="import-status">Pronto para calcular</span>
+                </section>
+
+                <section class="import-card">
+                  <div>
+                    <span class="model-kicker">Prontos</span>
+                    <h4>Exemplos das libs</h4>
+                    <p>Modelos sinteticos e grafos famosos exportados do DuckDB.</p>
+                  </div>
+                  <select id="builtInDatasetSelect">
+                    <option value="">Carregando exemplos...</option>
+                  </select>
+                  <button id="loadBuiltInDatasetButton" type="button">Adicionar exemplo</button>
+                  <span id="builtInDatasetStatus" class="import-status">Aguardando exemplos</span>
+                </section>
+
+                <label class="import-card">
+                  <span class="model-kicker">Referencia</span>
+                  <h4>Rede aleatoria</h4>
+                  <p>Modelo Erdos-Renyi ou dataset equivalente.</p>
+                  <input id="randomImportInput" type="file" accept=".csv,.txt,.json" />
+                  <span id="randomImportStatus" class="import-status">Nenhum arquivo</span>
+                </label>
+
+                <label class="import-card">
+                  <span class="model-kicker">Referencia</span>
+                  <h4>Mundo pequeno</h4>
+                  <p>Modelo Watts-Strogatz ou dataset equivalente.</p>
+                  <input id="smallWorldImportInput" type="file" accept=".csv,.txt,.json" />
+                  <span id="smallWorldImportStatus" class="import-status">Nenhum arquivo</span>
+                </label>
+
+                <label class="import-card">
+                  <span class="model-kicker">Referencia</span>
+                  <h4>Sem escala</h4>
+                  <p>Modelo Barabasi-Albert ou dataset equivalente.</p>
+                  <input id="scaleFreeImportInput" type="file" accept=".csv,.txt,.json" />
+                  <span id="scaleFreeImportStatus" class="import-status">Nenhum arquivo</span>
+                </label>
+              </div>
+            </article>
+
+            <article class="compare-panel compare-results-panel">
+              <header>
+                <h3>2. Comparativo e classificacao</h3>
+                <span id="compareMeta">Aguardando calculo</span>
+              </header>
+
+              <div id="compareSummary" class="compare-summary">
+                Importe as redes de referencia e clique em Comparar.
+              </div>
+
+              <div class="compare-table-wrap">
+                <table class="compare-table">
+                  <thead>
+                    <tr>
+                      <th>Rede</th>
+                      <th>Classe estimada</th>
+                      <th>Vertices</th>
+                      <th>Arestas</th>
+                      <th>Dist. media</th>
+                      <th>Agrupamento</th>
+                      <th>Grau medio</th>
+                      <th>Heterogeneidade</th>
+                    </tr>
+                  </thead>
+                  <tbody id="compareTableBody">
+                    <tr>
+                      <td colspan="8">Sem resultados ainda.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+        </section>
         <div id="tooltip" class="tooltip" hidden></div>
         <div id="loading" class="loading">
           <strong>Carregando grafo completo</strong>
@@ -64,6 +175,7 @@
         <nav class="mode-tabs" aria-label="Modo de visualizacao">
           <button id="mapModeButton" class="active" type="button">Mapa</button>
           <button id="analysisModeButton" type="button">Analises</button>
+          <button id="compareModeButton" type="button">Comparativo</button>
         </nav>
 
         <section class="stats-grid" aria-label="Metricas globais">
@@ -167,6 +279,6 @@
       </aside>
     </main>
 
-    <script src="./app.js?v=20260705-influence-1"></script>
+    <script src="./app.js?v=20260706-compare-1"></script>
   </body>
 </html>

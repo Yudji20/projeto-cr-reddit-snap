@@ -2,7 +2,7 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260705-influence-1";
+const ASSET_VERSION = "20260706-compare-1";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
@@ -15,6 +15,26 @@ const els = {
   topEdgesMeta: document.getElementById("topEdgesMeta"),
   exportJsonButton: document.getElementById("exportJsonButton"),
   exportCsvButton: document.getElementById("exportCsvButton"),
+  compareWorkspace: document.getElementById("compareWorkspace"),
+  compareTitle: document.getElementById("compareTitle"),
+  compareModeButton: document.getElementById("compareModeButton"),
+  runCompareButton: document.getElementById("runCompareButton"),
+  clearCompareButton: document.getElementById("clearCompareButton"),
+  loadProjectCompareButton: document.getElementById("loadProjectCompareButton"),
+  compareScopeSelect: document.getElementById("compareScopeSelect"),
+  projectImportStatus: document.getElementById("projectImportStatus"),
+  builtInDatasetSelect: document.getElementById("builtInDatasetSelect"),
+  loadBuiltInDatasetButton: document.getElementById("loadBuiltInDatasetButton"),
+  builtInDatasetStatus: document.getElementById("builtInDatasetStatus"),
+  randomImportInput: document.getElementById("randomImportInput"),
+  randomImportStatus: document.getElementById("randomImportStatus"),
+  smallWorldImportInput: document.getElementById("smallWorldImportInput"),
+  smallWorldImportStatus: document.getElementById("smallWorldImportStatus"),
+  scaleFreeImportInput: document.getElementById("scaleFreeImportInput"),
+  scaleFreeImportStatus: document.getElementById("scaleFreeImportStatus"),
+  compareMeta: document.getElementById("compareMeta"),
+  compareSummary: document.getElementById("compareSummary"),
+  compareTableBody: document.getElementById("compareTableBody"),
   mapModeButton: document.getElementById("mapModeButton"),
   analysisModeButton: document.getElementById("analysisModeButton"),
   statNodes: document.getElementById("statNodes"),
@@ -62,6 +82,15 @@ const state = {
   mode: "map",
   topEdgesLimit: 250,
   lastAnalysis: null,
+  compareDatasets: {
+    project: null,
+    random: null,
+    smallWorld: null,
+    scaleFree: null,
+  },
+  builtInComparisonDatasets: [],
+  extraCompareDatasets: [],
+  compareResults: [],
   transform: { x: 0, y: 0, scale: 1 },
   dragging: false,
   moved: false,
@@ -76,6 +105,20 @@ const pct = new Intl.NumberFormat("pt-BR", {
   style: "percent",
   maximumFractionDigits: 1,
 });
+const decimal = new Intl.NumberFormat("pt-BR", {
+  maximumFractionDigits: 3,
+});
+const compactNumber = new Intl.NumberFormat("pt-BR", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const compareSlots = [
+  { id: "project", name: "Projeto Reddit", expected: "projeto", status: "projectImportStatus" },
+  { id: "random", name: "Rede aleatoria", expected: "aleatoria", input: "randomImportInput", status: "randomImportStatus" },
+  { id: "smallWorld", name: "Mundo pequeno", expected: "mundo pequeno", input: "smallWorldImportInput", status: "smallWorldImportStatus" },
+  { id: "scaleFree", name: "Sem escala", expected: "sem escala", input: "scaleFreeImportInput", status: "scaleFreeImportStatus" },
+];
 
 function formatNumber(value) {
   return fmt.format(Math.round(value || 0));
@@ -519,15 +562,28 @@ function updateStats() {
   els.statLayer.textContent = state.layer;
 }
 
+function invalidateProjectCompare() {
+  if (!state.compareDatasets.project) return;
+  state.compareDatasets.project = null;
+  setImportStatus("project", "Filtro alterado. Recalcule o projeto.");
+  if (state.mode === "compare") renderCompareResults();
+}
+
 function setMode(mode) {
   state.mode = mode;
   const analysisMode = mode === "analysis";
-  canvas.hidden = analysisMode;
+  const compareMode = mode === "compare";
+  canvas.hidden = analysisMode || compareMode;
   els.analysisWorkspace.hidden = !analysisMode;
+  els.compareWorkspace.hidden = !compareMode;
   els.mapModeButton.classList.toggle("active", !analysisMode);
+  els.mapModeButton.classList.toggle("active", mode === "map");
   els.analysisModeButton.classList.toggle("active", analysisMode);
+  els.compareModeButton.classList.toggle("active", compareMode);
   if (analysisMode) {
     runAnalysis();
+  } else if (compareMode) {
+    renderCompareResults();
   } else {
     draw();
   }
@@ -557,6 +613,7 @@ async function updateLayer() {
   state.influenceComputedFor = "";
   computeInfluenceMetrics();
   updateStats();
+  invalidateProjectCompare();
   if (state.mode === "analysis") runAnalysis();
   draw();
 }
@@ -970,6 +1027,628 @@ function exportAnalysisCsv() {
   downloadText("reddit_top_edges_filtered.csv", "text/csv", csv);
 }
 
+function setImportStatus(slotId, text, type = "") {
+  const slot = compareSlots.find((item) => item.id === slotId);
+  const status = slot ? els[slot.status] : null;
+  if (!status) return;
+  status.textContent = text;
+  status.classList.toggle("is-ready", type === "ready");
+  status.classList.toggle("is-error", type === "error");
+}
+
+function parseCsvGraph(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  if (!lines.length) return { edges: [] };
+
+  const first = lines[0];
+  const delimiter = first.includes(";")
+    ? ";"
+    : first.includes("\t")
+      ? "\t"
+      : first.includes(",")
+        ? ","
+        : /\s+/;
+  const splitLine = (line) => line.split(delimiter).map((part) => part.trim().replace(/^"|"$/g, ""));
+  const firstParts = splitLine(first);
+  const headerTokens = firstParts.map((part) => part.toLowerCase());
+  const hasHeader = headerTokens.some((part) =>
+    ["source", "target", "src", "dst", "from", "to", "origem", "destino"].includes(part),
+  );
+  const sourceIndex = hasHeader
+    ? Math.max(0, headerTokens.findIndex((part) => ["source", "src", "from", "origem"].includes(part)))
+    : 0;
+  const targetIndex = hasHeader
+    ? Math.max(1, headerTokens.findIndex((part) => ["target", "dst", "to", "destino"].includes(part)))
+    : 1;
+  const weightIndex = hasHeader
+    ? headerTokens.findIndex((part) => ["weight", "peso", "w"].includes(part))
+    : 2;
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+
+  const edges = [];
+  for (const line of dataLines) {
+    const parts = splitLine(line);
+    const source = parts[sourceIndex];
+    const target = parts[targetIndex];
+    if (!source || !target || source === target) continue;
+    const weight = weightIndex >= 0 ? Number(parts[weightIndex]) || 1 : 1;
+    edges.push({ source, target, weight });
+  }
+  return { edges };
+}
+
+function edgeEndpoint(value, nodes) {
+  if (value && typeof value === "object") {
+    return String(value.id ?? value.name ?? value.label ?? JSON.stringify(value));
+  }
+  if (Number.isInteger(value) && Array.isArray(nodes) && nodes[value]) {
+    const node = nodes[value];
+    return String(node.id ?? node.name ?? node.label ?? value);
+  }
+  return String(value);
+}
+
+function normalizeJsonEdges(payload) {
+  const nodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
+  const rawEdges = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.edges)
+      ? payload.edges
+      : Array.isArray(payload?.links)
+        ? payload.links
+        : [];
+
+  const edges = [];
+  for (const item of rawEdges) {
+    let source;
+    let target;
+    let weight = 1;
+    if (Array.isArray(item)) {
+      [source, target, weight = 1] = item;
+    } else if (item && typeof item === "object") {
+      source = item.source ?? item.src ?? item.from ?? item.s;
+      target = item.target ?? item.dst ?? item.to ?? item.t;
+      weight = item.weight ?? item.peso ?? item.w ?? 1;
+    }
+    if (source === undefined || target === undefined || source === target) continue;
+    edges.push({
+      source: edgeEndpoint(source, nodes),
+      target: edgeEndpoint(target, nodes),
+      weight: Number(weight) || 1,
+    });
+  }
+  return { edges };
+}
+
+function parseGraphText(text, filename = "") {
+  const trimmed = text.trim();
+  if (!trimmed) return { edges: [] };
+  if (filename.toLowerCase().endsWith(".json") || /^[\[{]/.test(trimmed)) {
+    return normalizeJsonEdges(JSON.parse(trimmed));
+  }
+  return parseCsvGraph(trimmed);
+}
+
+function buildUndirectedAdjacency(edges) {
+  const adjacency = new Map();
+  const pairSet = new Set();
+  for (const edge of edges) {
+    const source = String(edge.source);
+    const target = String(edge.target);
+    if (!source || !target || source === target) continue;
+    const a = source < target ? source : target;
+    const b = source < target ? target : source;
+    const key = `${a}\u0000${b}`;
+    if (pairSet.has(key)) continue;
+    pairSet.add(key);
+    if (!adjacency.has(source)) adjacency.set(source, new Set());
+    if (!adjacency.has(target)) adjacency.set(target, new Set());
+    adjacency.get(source).add(target);
+    adjacency.get(target).add(source);
+  }
+  return { adjacency, edgeCount: pairSet.size };
+}
+
+function sampleList(items, limit) {
+  if (items.length <= limit) return items;
+  const sampled = [];
+  const step = items.length / limit;
+  for (let index = 0; index < limit; index += 1) {
+    sampled.push(items[Math.min(items.length - 1, Math.floor(index * step))]);
+  }
+  return sampled;
+}
+
+function largestComponent(adjacency) {
+  const visited = new Set();
+  let largest = [];
+  for (const start of adjacency.keys()) {
+    if (visited.has(start)) continue;
+    const component = [];
+    const queue = [start];
+    visited.add(start);
+    for (let head = 0; head < queue.length; head += 1) {
+      const node = queue[head];
+      component.push(node);
+      for (const neighbor of adjacency.get(node) || []) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+    if (component.length > largest.length) largest = component;
+  }
+  return largest;
+}
+
+function bfsDistances(start, adjacency, allowed) {
+  const distances = new Map([[start, 0]]);
+  const queue = [start];
+  for (let head = 0; head < queue.length; head += 1) {
+    const node = queue[head];
+    const nextDistance = distances.get(node) + 1;
+    for (const neighbor of adjacency.get(node) || []) {
+      if (allowed && !allowed.has(neighbor)) continue;
+      if (!distances.has(neighbor)) {
+        distances.set(neighbor, nextDistance);
+        queue.push(neighbor);
+      }
+    }
+  }
+  return distances;
+}
+
+function estimateAveragePathLength(adjacency, component) {
+  if (component.length < 2) return 0;
+  const allowed = new Set(component);
+  const seeds = sampleList(component, Math.min(48, component.length));
+  let total = 0;
+  let count = 0;
+  for (const seed of seeds) {
+    const distances = bfsDistances(seed, adjacency, allowed);
+    for (const [node, distance] of distances) {
+      if (node === seed) continue;
+      total += distance;
+      count += 1;
+    }
+  }
+  return count ? total / count : null;
+}
+
+function estimateClustering(adjacency, component) {
+  const candidates = sampleList(
+    component.filter((node) => (adjacency.get(node)?.size || 0) >= 2),
+    900,
+  );
+  if (!candidates.length) return 0;
+  let total = 0;
+  let evaluated = 0;
+
+  for (const node of candidates) {
+    const neighbors = [...(adjacency.get(node) || [])];
+    const degree = neighbors.length;
+    const possible = (degree * (degree - 1)) / 2;
+    if (!possible) continue;
+
+    let coefficient = 0;
+    if (degree <= 180) {
+      let links = 0;
+      for (let i = 0; i < degree; i += 1) {
+        const neighborSet = adjacency.get(neighbors[i]);
+        for (let j = i + 1; j < degree; j += 1) {
+          if (neighborSet?.has(neighbors[j])) links += 1;
+        }
+      }
+      coefficient = links / possible;
+    } else {
+      let links = 0;
+      const pairSamples = 800;
+      for (let index = 0; index < pairSamples; index += 1) {
+        const a = Math.floor(normalizedHash(`${node}:${index}`, "cluster-a") * degree);
+        let b = Math.floor(normalizedHash(`${node}:${index}`, "cluster-b") * degree);
+        if (a === b) b = (b + 1) % degree;
+        if (adjacency.get(neighbors[a])?.has(neighbors[b])) links += 1;
+      }
+      coefficient = links / pairSamples;
+    }
+    total += coefficient;
+    evaluated += 1;
+  }
+  return evaluated ? total / evaluated : 0;
+}
+
+function degreeGini(degrees) {
+  const sorted = [...degrees].sort((a, b) => a - b);
+  const sum = sorted.reduce((acc, value) => acc + value, 0);
+  if (!sum) return 0;
+  let weighted = 0;
+  for (let index = 0; index < sorted.length; index += 1) {
+    weighted += (index + 1) * sorted[index];
+  }
+  return (2 * weighted) / (sorted.length * sum) - (sorted.length + 1) / sorted.length;
+}
+
+function estimatePowerLawSlope(degrees) {
+  const counts = new Map();
+  for (const degree of degrees) {
+    if (degree >= 2) counts.set(degree, (counts.get(degree) || 0) + 1);
+  }
+  const points = [...counts.entries()]
+    .filter(([, count]) => count >= 2)
+    .map(([degree, count]) => [Math.log(degree), Math.log(count)]);
+  if (points.length < 4) return null;
+  const meanX = points.reduce((sum, point) => sum + point[0], 0) / points.length;
+  const meanY = points.reduce((sum, point) => sum + point[1], 0) / points.length;
+  let numerator = 0;
+  let denominator = 0;
+  for (const [x, y] of points) {
+    numerator += (x - meanX) * (y - meanY);
+    denominator += (x - meanX) ** 2;
+  }
+  return denominator ? numerator / denominator : null;
+}
+
+function classifyNetwork(metrics) {
+  if (metrics.nodeCount < 10 || metrics.edgeCount < 5) {
+    return {
+      key: "mixed",
+      label: "dados insuficientes",
+      reason: "A rede e pequena demais para uma inferencia confiavel.",
+    };
+  }
+
+  const clusteringRatio = metrics.density > 0 ? metrics.clustering / metrics.density : 0;
+  const pathStretch = metrics.randomPathEstimate
+    ? metrics.avgPathLength / metrics.randomPathEstimate
+    : Infinity;
+  const hubRatio = metrics.avgDegree ? metrics.maxDegree / metrics.avgDegree : 0;
+  const slopeLooksScaleFree = metrics.powerLawSlope !== null
+    && metrics.powerLawSlope <= -1.4
+    && metrics.powerLawSlope >= -3.8;
+  const scaleScore = [
+    metrics.degreeCv >= 1.8,
+    hubRatio >= 8,
+    metrics.topOneDegreeShare >= 0.025,
+    slopeLooksScaleFree,
+  ].filter(Boolean).length;
+  const smallWorldLike = clusteringRatio >= 4 && pathStretch <= 2.5 && metrics.avgPathLength !== null;
+  const randomLike = metrics.degreeCv < 1.25 && clusteringRatio >= 0.35 && clusteringRatio <= 3.2 && pathStretch <= 1.8;
+
+  if (scaleScore >= 2 && smallWorldLike) {
+    return {
+      key: "mixed",
+      label: "sem escala + mundo pequeno",
+      reason: "Ha hubs fortes e tambem agrupamento alto com caminhos curtos.",
+    };
+  }
+  if (scaleScore >= 2) {
+    return {
+      key: "scale-free",
+      label: "sem escala",
+      reason: "A distribuicao de grau e muito desigual e concentrada em hubs.",
+    };
+  }
+  if (smallWorldLike) {
+    return {
+      key: "small-world",
+      label: "mundo pequeno",
+      reason: "O agrupamento supera a densidade e a distancia media segue curta.",
+    };
+  }
+  if (randomLike) {
+    return {
+      key: "random",
+      label: "aleatoria",
+      reason: "O grau e homogeneo e o agrupamento fica proximo da densidade.",
+    };
+  }
+  return {
+    key: "mixed",
+    label: "hibrida/indefinida",
+    reason: "As metricas nao se encaixam claramente nos tres modelos basicos.",
+  };
+}
+
+function computeNetworkMetrics(edges) {
+  const { adjacency, edgeCount } = buildUndirectedAdjacency(edges);
+  const nodes = [...adjacency.keys()];
+  const nodeCount = nodes.length;
+  const degrees = nodes.map((node) => adjacency.get(node).size);
+  const degreeSum = degrees.reduce((sum, degree) => sum + degree, 0);
+  const avgDegree = nodeCount ? degreeSum / nodeCount : 0;
+  const density = nodeCount > 1 ? (2 * edgeCount) / (nodeCount * (nodeCount - 1)) : 0;
+  const maxDegree = degrees.reduce((max, degree) => Math.max(max, degree), 0);
+  const variance = nodeCount
+    ? degrees.reduce((sum, degree) => sum + (degree - avgDegree) ** 2, 0) / nodeCount
+    : 0;
+  const degreeStd = Math.sqrt(variance);
+  const degreeCv = avgDegree ? degreeStd / avgDegree : 0;
+  const component = largestComponent(adjacency);
+  const componentShare = nodeCount ? component.length / nodeCount : 0;
+  const avgPathLength = estimateAveragePathLength(adjacency, component);
+  const clustering = estimateClustering(adjacency, component);
+  const randomPathEstimate = avgDegree > 1 && nodeCount > 2
+    ? Math.log(nodeCount) / Math.log(avgDegree)
+    : null;
+  const sortedDegrees = [...degrees].sort((a, b) => b - a);
+  const topOneDegreeShare = degreeSum ? (sortedDegrees[0] || 0) / degreeSum : 0;
+  const topFiveDegreeShare = degreeSum
+    ? sortedDegrees.slice(0, 5).reduce((sum, degree) => sum + degree, 0) / degreeSum
+    : 0;
+  const metrics = {
+    nodeCount,
+    edgeCount,
+    avgDegree,
+    density,
+    maxDegree,
+    degreeCv,
+    degreeGini: degreeGini(degrees),
+    componentShare,
+    avgPathLength,
+    clustering,
+    randomPathEstimate,
+    topOneDegreeShare,
+    topFiveDegreeShare,
+    powerLawSlope: estimatePowerLawSlope(degrees),
+  };
+  metrics.classification = classifyNetwork(metrics);
+  return metrics;
+}
+
+async function importCompareFile(slotId, file) {
+  if (!file) return;
+  setImportStatus(slotId, "Lendo arquivo...", "");
+  try {
+    const text = await file.text();
+    const graph = parseGraphText(text, file.name);
+    if (!graph.edges.length) throw new Error("Nenhuma aresta valida encontrada.");
+    const slot = compareSlots.find((item) => item.id === slotId);
+    state.compareDatasets[slotId] = {
+      id: slotId,
+      name: slot.name,
+      expected: slot.expected,
+      fileName: file.name,
+      edges: graph.edges,
+      metrics: null,
+    };
+    setImportStatus(slotId, `${file.name} - ${formatNumber(graph.edges.length)} arestas`, "ready");
+    renderCompareResults();
+  } catch (error) {
+    state.compareDatasets[slotId] = null;
+    setImportStatus(slotId, `Erro: ${error.message}`, "error");
+  }
+}
+
+function projectCompareEdgesForScope() {
+  const scope = els.compareScopeSelect.value;
+  const filtered = getFilteredEdges();
+
+  if (scope === "community") {
+    const communityId = state.selectedCommunity ?? state.selectedNode?.community;
+    if (communityId === null || communityId === undefined) {
+      throw new Error("Selecione uma comunidade no mapa ou na lista antes de comparar.");
+    }
+    const community = state.communities.find((item) => item.id === communityId);
+    const edges = filtered
+      .filter((edge) => state.nodes[edge.s]?.community === communityId && state.nodes[edge.t]?.community === communityId)
+      .map((edge) => ({
+        source: state.nodes[edge.s]?.id ?? String(edge.s),
+        target: state.nodes[edge.t]?.id ?? String(edge.t),
+        weight: edge.w,
+      }));
+    return {
+      edges,
+      scopeLabel: `comunidade ${community?.label ?? communityId}`,
+    };
+  }
+
+  if (scope === "ego") {
+    const query = els.searchInput.value.trim().toLowerCase();
+    const center = query && state.nodeById.has(query)
+      ? state.nodeById.get(query)
+      : state.selectedNode;
+    if (!center) {
+      throw new Error("Busque ou selecione um subreddit antes de comparar a rede ego.");
+    }
+    const centerIndex = state.nodes.indexOf(center);
+    const nodeSet = new Set([centerIndex]);
+    for (const edge of filtered) {
+      if (edge.s === centerIndex) nodeSet.add(edge.t);
+      if (edge.t === centerIndex) nodeSet.add(edge.s);
+    }
+    const edges = filtered
+      .filter((edge) => nodeSet.has(edge.s) && nodeSet.has(edge.t))
+      .map((edge) => ({
+        source: state.nodes[edge.s]?.id ?? String(edge.s),
+        target: state.nodes[edge.t]?.id ?? String(edge.t),
+        weight: edge.w,
+      }));
+    return {
+      edges,
+      scopeLabel: `ego de ${center.id}`,
+    };
+  }
+
+  return {
+    edges: filtered.map((edge) => ({
+      source: state.nodes[edge.s]?.id ?? String(edge.s),
+      target: state.nodes[edge.t]?.id ?? String(edge.t),
+      weight: edge.w,
+    })),
+    scopeLabel: "rede completa",
+  };
+}
+
+async function loadProjectCompareDataset() {
+  setImportStatus("project", "Carregando camada atual...", "");
+  if (!state.edges.length) {
+    state.edges = await loadEdges(state.layer);
+  }
+  const { edges, scopeLabel } = projectCompareEdgesForScope();
+  if (!edges.length) {
+    throw new Error("O escopo escolhido nao possui arestas com os filtros atuais.");
+  }
+  state.compareDatasets.project = {
+    id: "project",
+    name: "Projeto Reddit",
+    expected: "projeto",
+    fileName: `${scopeLabel}, camada ${state.layer}`,
+    edges,
+    metrics: null,
+  };
+  setImportStatus("project", `${scopeLabel} - ${formatNumber(edges.length)} arestas`, "ready");
+}
+
+async function loadBuiltInComparisonDatasets() {
+  try {
+    const response = await fetch(`./public/comparison-datasets.json?v=${ASSET_VERSION}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    state.builtInComparisonDatasets = payload.datasets || [];
+    els.builtInDatasetSelect.innerHTML = state.builtInComparisonDatasets
+      .map((dataset) => `<option value="${dataset.id}">${dataset.name} - ${dataset.model}</option>`)
+      .join("");
+    els.builtInDatasetStatus.textContent = `${formatNumber(state.builtInComparisonDatasets.length)} exemplos disponiveis`;
+    els.builtInDatasetStatus.classList.add("is-ready");
+  } catch (error) {
+    els.builtInDatasetSelect.innerHTML = `<option value="">Sem exemplos</option>`;
+    els.builtInDatasetStatus.textContent = `Erro ao carregar exemplos: ${error.message}`;
+    els.builtInDatasetStatus.classList.add("is-error");
+  }
+}
+
+function addBuiltInDataset() {
+  const datasetId = els.builtInDatasetSelect.value;
+  const dataset = state.builtInComparisonDatasets.find((item) => item.id === datasetId);
+  if (!dataset) return;
+  const normalized = {
+    id: `builtIn:${dataset.id}`,
+    name: dataset.name,
+    expected: dataset.model,
+    fileName: dataset.source,
+    edges: dataset.edges,
+    metrics: null,
+  };
+  state.extraCompareDatasets = state.extraCompareDatasets.filter((item) => item.id !== normalized.id);
+  state.extraCompareDatasets.push(normalized);
+  els.builtInDatasetStatus.textContent = `${dataset.name} adicionado`;
+  els.builtInDatasetStatus.classList.add("is-ready");
+  renderCompareResults();
+}
+
+function formatMetric(value, fallback = "-") {
+  if (value === null || value === undefined || Number.isNaN(value)) return fallback;
+  return decimal.format(value);
+}
+
+function classChip(classification) {
+  return `<span class="class-chip ${classification.key}">${classification.label}</span>`;
+}
+
+function renderCompareResults() {
+  const datasets = [
+    ...compareSlots.map((slot) => state.compareDatasets[slot.id]).filter(Boolean),
+    ...state.extraCompareDatasets,
+  ];
+  if (!datasets.length) {
+    els.compareMeta.textContent = "Aguardando calculo";
+    els.compareSummary.textContent = "Importe as redes de referencia e clique em Comparar.";
+    els.compareTableBody.innerHTML = `<tr><td colspan="8">Sem resultados ainda.</td></tr>`;
+    return;
+  }
+
+  const withMetrics = datasets.filter((dataset) => dataset.metrics);
+  els.compareMeta.textContent = withMetrics.length
+    ? `${formatNumber(withMetrics.length)} redes calculadas`
+    : `${formatNumber(datasets.length)} redes importadas`;
+
+  const project = state.compareDatasets.project;
+  if (project?.metrics) {
+    els.compareSummary.innerHTML = `
+      <strong>Projeto classificado como ${project.metrics.classification.label}</strong>
+      ${project.metrics.classification.reason}
+      <div class="metric-line"><span>camada/filtro</span><strong>${state.layer}, sinal ${state.sentiment}, peso >= ${state.minWeight}</strong></div>
+      <div class="metric-line"><span>componente principal</span><strong>${pct.format(project.metrics.componentShare)}</strong></div>
+    `;
+  } else {
+    els.compareSummary.textContent = "Clique em Comparar para calcular as metricas aproximadas do projeto e das redes importadas.";
+  }
+
+  els.compareTableBody.innerHTML = datasets
+    .map((dataset) => {
+      if (!dataset.metrics) {
+        return `
+          <tr>
+            <td><strong>${dataset.name}</strong><br /><small>${dataset.fileName}</small></td>
+            <td colspan="7">Importado. Calculo pendente.</td>
+          </tr>
+        `;
+      }
+      const metrics = dataset.metrics;
+      return `
+        <tr>
+          <td><strong>${dataset.name}</strong><br /><small>${dataset.fileName}</small></td>
+          <td>${classChip(metrics.classification)}<br /><small>${metrics.classification.reason}</small></td>
+          <td>${compactNumber.format(metrics.nodeCount)}</td>
+          <td>${compactNumber.format(metrics.edgeCount)}</td>
+          <td>${formatMetric(metrics.avgPathLength)}</td>
+          <td>${formatMetric(metrics.clustering)}</td>
+          <td>${formatMetric(metrics.avgDegree)}</td>
+          <td>
+            CV ${formatMetric(metrics.degreeCv)}<br />
+            hub/max ${formatMetric(metrics.avgDegree ? metrics.maxDegree / metrics.avgDegree : 0)}
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+async function runCompare() {
+  els.compareMeta.textContent = "Calculando metricas...";
+  if (!state.compareDatasets.project) {
+    try {
+      await loadProjectCompareDataset();
+    } catch (error) {
+      setImportStatus("project", `Erro: ${error.message}`, "error");
+    }
+  }
+  const datasets = [
+    ...compareSlots.map((slot) => state.compareDatasets[slot.id]).filter(Boolean),
+    ...state.extraCompareDatasets,
+  ];
+  for (const dataset of datasets) {
+    if (!dataset.metrics) {
+      setImportStatus(dataset.id, `Calculando ${dataset.name}...`, "");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      dataset.metrics = computeNetworkMetrics(dataset.edges);
+      setImportStatus(dataset.id, `${formatNumber(dataset.metrics.nodeCount)} vertices analisados`, "ready");
+    }
+  }
+  state.compareResults = datasets;
+  renderCompareResults();
+}
+
+function clearCompare() {
+  state.compareDatasets = {
+    project: null,
+    random: null,
+    smallWorld: null,
+    scaleFree: null,
+  };
+  state.extraCompareDatasets = [];
+  state.compareResults = [];
+  for (const slot of compareSlots) {
+    if (slot.input && els[slot.input]) els[slot.input].value = "";
+    setImportStatus(slot.id, slot.id === "project" ? "Pronto para calcular" : "Nenhum arquivo");
+  }
+  renderCompareResults();
+}
+
 function renderCommunities() {
   els.communityList.innerHTML = "";
   for (const community of state.communities.slice(0, 12)) {
@@ -1078,6 +1757,7 @@ function attachEvents() {
     state.sentiment = els.sentimentSelect.value;
     state.influenceComputedFor = "";
     computeInfluenceMetrics();
+    invalidateProjectCompare();
     if (state.mode === "analysis") runAnalysis();
     draw();
   });
@@ -1086,6 +1766,7 @@ function attachEvents() {
     els.weightOutput.textContent = state.minWeight;
     state.influenceComputedFor = "";
     computeInfluenceMetrics();
+    invalidateProjectCompare();
     if (state.mode === "analysis") runAnalysis();
     draw();
   });
@@ -1119,8 +1800,27 @@ function attachEvents() {
   els.runAnalysisButton.addEventListener("click", () => setMode("analysis"));
   els.mapModeButton.addEventListener("click", () => setMode("map"));
   els.analysisModeButton.addEventListener("click", () => setMode("analysis"));
+  els.compareModeButton.addEventListener("click", () => setMode("compare"));
   els.exportJsonButton.addEventListener("click", exportAnalysisJson);
   els.exportCsvButton.addEventListener("click", exportAnalysisCsv);
+  els.runCompareButton.addEventListener("click", runCompare);
+  els.clearCompareButton.addEventListener("click", clearCompare);
+  els.loadProjectCompareButton.addEventListener("click", async () => {
+    try {
+      await loadProjectCompareDataset();
+      renderCompareResults();
+    } catch (error) {
+      setImportStatus("project", `Erro: ${error.message}`, "error");
+    }
+  });
+  els.compareScopeSelect.addEventListener("change", invalidateProjectCompare);
+  els.loadBuiltInDatasetButton.addEventListener("click", addBuiltInDataset);
+  for (const slot of compareSlots) {
+    if (!slot.input || !els[slot.input]) continue;
+    els[slot.input].addEventListener("change", (event) => {
+      importCompareFile(slot.id, event.target.files?.[0]);
+    });
+  }
 }
 
 async function init() {
@@ -1137,6 +1837,7 @@ async function init() {
   updateStats();
   updateInfluenceLegend();
   renderCommunities();
+  loadBuiltInComparisonDatasets();
   loading.hidden = true;
   loading.classList.add("is-hidden");
   fitToGraph();
@@ -1161,5 +1862,6 @@ window.redditGraphApp = {
     nodes: state.nodes.length,
     edges: state.edges.length,
     hasAnalysis: Boolean(state.lastAnalysis),
+    compareResults: state.compareResults.length,
   }),
 };

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Reddit SNAP Graph Explorer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260706-compare-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260708-map-time-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -29,6 +29,14 @@
                 <span id="distributionMeta">-</span>
               </header>
               <canvas id="distributionCanvas"></canvas>
+            </article>
+
+            <article class="analysis-card analysis-card-wide analysis-map-card">
+              <header>
+                <h3>Visao mapa</h3>
+                <span id="analysisMapMeta">-</span>
+              </header>
+              <canvas id="analysisMapCanvas"></canvas>
             </article>
 
             <article class="analysis-card">
@@ -211,7 +219,7 @@
             Visao
             <select id="layoutModeSelect">
               <option value="communities">comunidades</option>
-              <option value="dispersed">dispersa</option>
+              <option value="dispersed" selected>dispersa</option>
             </select>
           </label>
 
@@ -233,6 +241,24 @@
               <option value="positive">positivo/neutro</option>
               <option value="negative">negativo</option>
             </select>
+          </label>
+
+          <label>
+            Papel
+            <select id="roleSelect">
+              <option value="all">todos</option>
+              <option value="hub">hubs</option>
+              <option value="emissor">emissores</option>
+              <option value="receptor">receptores</option>
+              <option value="misto">mistos</option>
+            </select>
+          </label>
+
+          <label class="timeline-control">
+            Linha do tempo
+            <input id="timelineInput" type="range" min="0" max="11" value="11" />
+            <output id="timelineOutput">Janela 12/12</output>
+            <span id="timelineMeta" class="timeline-meta">grafo completo</span>
           </label>
 
           <label>
@@ -279,6 +305,6 @@
       </aside>
     </main>
 
-    <script src="./app.js?v=20260706-compare-1"></script>
+    <script src="./app.js?v=20260708-map-time-1"></script>
   </body>
 </html>

@@ -2,13 +2,15 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260706-compare-1";
+const ASSET_VERSION = "20260708-map-time-1";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
   analysisTitle: document.getElementById("analysisTitle"),
   distributionCanvas: document.getElementById("distributionCanvas"),
   distributionMeta: document.getElementById("distributionMeta"),
+  analysisMapCanvas: document.getElementById("analysisMapCanvas"),
+  analysisMapMeta: document.getElementById("analysisMapMeta"),
   egoCanvas: document.getElementById("egoCanvas"),
   egoMeta: document.getElementById("egoMeta"),
   topEdgesCanvas: document.getElementById("topEdgesCanvas"),
@@ -46,6 +48,10 @@ const els = {
   influenceSelect: document.getElementById("influenceSelect"),
   influenceLegend: document.getElementById("influenceLegend"),
   sentimentSelect: document.getElementById("sentimentSelect"),
+  roleSelect: document.getElementById("roleSelect"),
+  timelineInput: document.getElementById("timelineInput"),
+  timelineOutput: document.getElementById("timelineOutput"),
+  timelineMeta: document.getElementById("timelineMeta"),
   weightInput: document.getElementById("weightInput"),
   weightOutput: document.getElementById("weightOutput"),
   edgesToggle: document.getElementById("edgesToggle"),
@@ -68,11 +74,16 @@ const state = {
   communities: [],
   nodeById: new Map(),
   layer: "combined",
-  layoutMode: "communities",
+  layoutMode: "dispersed",
   influenceMode: "default",
   influenceComputedFor: "",
   influenceMax: { popularity: 1, bridge: 1, combined: 1 },
   sentiment: "all",
+  roleFilter: "all",
+  timeWindowIndex: 11,
+  timeWindowCount: 12,
+  timeBounds: null,
+  timelineSource: "estimated",
   minWeight: 1,
   showEdges: false,
   showLabels: true,
@@ -122,6 +133,17 @@ const compareSlots = [
 
 function formatNumber(value) {
   return fmt.format(Math.round(value || 0));
+}
+
+function roleFilterLabel() {
+  const labels = {
+    all: "todos os papeis",
+    hub: "hubs",
+    emissor: "emissores",
+    receptor: "receptores",
+    misto: "mistos",
+  };
+  return labels[state.roleFilter] || state.roleFilter;
 }
 
 function hashString(value) {
@@ -221,7 +243,96 @@ function fitToCurrentLayout() {
   fitToGraph(currentBounds());
 }
 
+function edgeDateValue(edge) {
+  const value = edge.l || edge.f || edge.lastSeen || edge.firstSeen;
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function prepareTimelineFromEdges(edges) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const edge of edges) {
+    const first = edge.f || edge.firstSeen;
+    const last = edge.l || edge.lastSeen || first;
+    const start = first ? Date.parse(first) : null;
+    const end = last ? Date.parse(last) : start;
+    if (Number.isFinite(start)) min = Math.min(min, start);
+    if (Number.isFinite(end)) max = Math.max(max, end);
+  }
+  if (Number.isFinite(min) && Number.isFinite(max) && max >= min) {
+    state.timeBounds = { min, max };
+    state.timelineSource = "real";
+  } else {
+    state.timeBounds = null;
+    state.timelineSource = "estimated";
+  }
+  updateTimelineControls();
+}
+
+function edgeTimeBucket(edge) {
+  if (state.timelineSource === "real" && state.timeBounds) {
+    const timestamp = edgeDateValue(edge);
+    if (timestamp !== null) {
+      const span = Math.max(1, state.timeBounds.max - state.timeBounds.min);
+      const ratio = Math.max(0, Math.min(1, (timestamp - state.timeBounds.min) / span));
+      return Math.min(state.timeWindowCount - 1, Math.floor(ratio * state.timeWindowCount));
+    }
+  }
+  const source = state.nodes[edge.s]?.id ?? String(edge.s);
+  const target = state.nodes[edge.t]?.id ?? String(edge.t);
+  return Math.min(
+    state.timeWindowCount - 1,
+    Math.floor(normalizedHash(`${source}->${target}`, state.layer) * state.timeWindowCount),
+  );
+}
+
+function edgeInTimeWindow(edge) {
+  if (state.timeWindowIndex >= state.timeWindowCount - 1) return true;
+  return edgeTimeBucket(edge) <= state.timeWindowIndex;
+}
+
+function formatTimelineDate(timestamp) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    year: "numeric",
+    month: "short",
+  }).format(new Date(timestamp));
+}
+
+function timelineLabel() {
+  if (state.timelineSource === "real" && state.timeBounds) {
+    const span = state.timeBounds.max - state.timeBounds.min;
+    const ratio = state.timeWindowIndex / Math.max(1, state.timeWindowCount - 1);
+    return `ate ${formatTimelineDate(state.timeBounds.min + span * ratio)}`;
+  }
+  return `Janela ${state.timeWindowIndex + 1}/${state.timeWindowCount}`;
+}
+
+function updateTimelineControls() {
+  if (!els.timelineInput) return;
+  els.timelineInput.max = String(state.timeWindowCount - 1);
+  els.timelineInput.value = String(state.timeWindowIndex);
+  els.timelineOutput.textContent = timelineLabel();
+  const sourceLabel = state.timelineSource === "real" ? "periodo acumulado" : "janela estimada";
+  const edgeLabel = state.edges.length ? ` | ${formatNumber(getFilteredEdges().length)} arestas` : "";
+  els.timelineMeta.textContent = `${sourceLabel}${edgeLabel}`;
+}
+
+function nodeVisibleByRole(node) {
+  return state.roleFilter === "all" || node?.role === state.roleFilter;
+}
+
+function roleFilteredNodeCount() {
+  if (state.roleFilter === "all") return state.data?.meta.nodeCount || state.nodes.length;
+  return state.nodes.reduce((count, node) => count + (nodeVisibleByRole(node) ? 1 : 0), 0);
+}
+
 function edgeVisible(edge) {
+  const source = state.nodes[edge.s];
+  const target = state.nodes[edge.t];
+  if (!nodeVisibleByRole(source) || !nodeVisibleByRole(target)) return false;
+  if (!edgeInTimeWindow(edge)) return false;
   if (edge.w < state.minWeight) return false;
   if (state.sentiment === "negative") return edge.n > edge.p;
   if (state.sentiment === "positive") return edge.p >= edge.n;
@@ -270,7 +381,7 @@ function computeInfluenceMetrics() {
     resetInfluenceMetrics();
     return;
   }
-  const signature = `${state.layer}:${state.sentiment}:${state.minWeight}:${state.edges.length}`;
+  const signature = `${state.layer}:${state.sentiment}:${state.roleFilter}:${state.timeWindowIndex}:${state.minWeight}:${state.edges.length}`;
   if (state.influenceComputedFor === signature) return;
 
   const bridgeCommunities = new Map();
@@ -414,6 +525,7 @@ function drawCommunities() {
 function drawNodes() {
   ctx.save();
   for (const node of state.nodes) {
+    if (!nodeVisibleByRole(node)) continue;
     if (state.layoutMode === "communities" && state.selectedCommunity !== null && node.community !== state.selectedCommunity) {
       ctx.globalAlpha = 0.16;
     } else {
@@ -440,7 +552,7 @@ function drawNodes() {
 }
 
 function drawFocusLinks() {
-  if (!state.selectedNode) return;
+  if (!state.selectedNode || !nodeVisibleByRole(state.selectedNode)) return;
   const selectedIndex = state.nodes.indexOf(state.selectedNode);
   const selected = worldToScreen(getNodeX(state.selectedNode), getNodeY(state.selectedNode));
   ctx.save();
@@ -481,6 +593,7 @@ function nearestNode(screenX, screenY) {
   let best = null;
   let bestDistance = Infinity;
   for (const node of state.nodes) {
+    if (!nodeVisibleByRole(node)) continue;
     if (state.layoutMode === "communities" && state.selectedCommunity !== null && node.community !== state.selectedCommunity) continue;
     const p = worldToScreen(getNodeX(node), getNodeY(node));
     const dx = p.x - screenX;
@@ -556,10 +669,13 @@ function zoomAt(screenX, screenY, delta) {
 }
 
 function updateStats() {
-  els.statNodes.textContent = formatNumber(state.data.meta.nodeCount);
-  els.statEdges.textContent = formatNumber(state.data.meta.edgeCount[state.layer]);
+  els.statNodes.textContent = formatNumber(roleFilteredNodeCount());
+  els.statEdges.textContent = formatNumber(
+    state.edges.length ? getFilteredEdges().length : state.data.meta.edgeCount[state.layer],
+  );
   els.statCommunities.textContent = formatNumber(state.data.meta.communityCount);
   els.statLayer.textContent = state.layer;
+  updateTimelineControls();
 }
 
 function invalidateProjectCompare() {
@@ -591,7 +707,9 @@ function setMode(mode) {
 
 async function loadEdges(layer) {
   if (state.edgeCache.has(layer)) {
-    return state.edgeCache.get(layer);
+    const cachedEdges = state.edgeCache.get(layer);
+    prepareTimelineFromEdges(cachedEdges);
+    return cachedEdges;
   }
   loading.hidden = false;
   loading.classList.remove("is-hidden");
@@ -600,6 +718,7 @@ async function loadEdges(layer) {
   if (!response.ok) throw new Error(`Falha ao carregar edges-${layer}.json: ${response.status}`);
   const edges = await response.json();
   state.edgeCache.set(layer, edges);
+  prepareTimelineFromEdges(edges);
   loading.hidden = true;
   loading.classList.add("is-hidden");
   return edges;
@@ -622,10 +741,25 @@ function getFilteredEdges() {
   return state.edges.filter(edgeVisible);
 }
 
+function clearHiddenSelection() {
+  let cleared = false;
+  if (state.selectedNode && !nodeVisibleByRole(state.selectedNode)) {
+    state.selectedNode = null;
+    cleared = true;
+  }
+  if (state.hoverNode && !nodeVisibleByRole(state.hoverNode)) {
+    state.hoverNode = null;
+    tooltip.hidden = true;
+  }
+  if (cleared) {
+    els.selectionPanel.textContent = "Selecao fora do filtro de papel atual.";
+  }
+}
+
 function getAnalysisCenter() {
   const query = els.searchInput.value.trim().toLowerCase();
-  if (query && state.nodeById.has(query)) return query;
-  if (state.selectedNode) return state.selectedNode.id;
+  if (query && state.nodeById.has(query) && nodeVisibleByRole(state.nodeById.get(query))) return query;
+  if (state.selectedNode && nodeVisibleByRole(state.selectedNode)) return state.selectedNode.id;
   return "subredditdrama";
 }
 
@@ -692,6 +826,7 @@ function computeAnalysis() {
     nodeRows,
     edgeWeights,
     topEdges,
+    filteredEdges: edges,
     egoIncoming: incoming.slice(0, 24),
     egoOutgoing: outgoing.slice(0, 24),
     edgeCount: edges.length,
@@ -816,6 +951,148 @@ function drawDistributions(analysis) {
     "#e76f51",
   );
   els.distributionMeta.textContent = `${formatNumber(analysis.nodeCount)} vertices | ${formatNumber(analysis.edgeCount)} arestas`;
+}
+
+function analysisMapFocus(analysis) {
+  const query = els.searchInput.value.trim().toLowerCase();
+  const queryNode = query && state.nodeById.has(query) ? state.nodeById.get(query) : null;
+  const center = queryNode && nodeVisibleByRole(queryNode) ? queryNode : state.selectedNode;
+  const nodeSet = new Set();
+  let focusEdges = [];
+  let label = "top arestas";
+
+  if (center) {
+    const centerIndex = state.nodes.indexOf(center);
+    nodeSet.add(centerIndex);
+    focusEdges = analysis.filteredEdges.filter((edge) => edge.s === centerIndex || edge.t === centerIndex);
+    for (const edge of focusEdges) {
+      nodeSet.add(edge.s);
+      nodeSet.add(edge.t);
+    }
+    label = `ego de ${center.id}`;
+  } else if (state.selectedCommunity !== null && state.selectedCommunity !== undefined) {
+    const community = state.communities.find((item) => item.id === state.selectedCommunity);
+    focusEdges = analysis.filteredEdges.filter((edge) => {
+      const source = state.nodes[edge.s];
+      const target = state.nodes[edge.t];
+      return source?.community === state.selectedCommunity && target?.community === state.selectedCommunity;
+    });
+    for (const edge of focusEdges) {
+      nodeSet.add(edge.s);
+      nodeSet.add(edge.t);
+    }
+    for (const [index, node] of state.nodes.entries()) {
+      if (node.community === state.selectedCommunity && nodeVisibleByRole(node)) nodeSet.add(index);
+    }
+    label = community?.label || `comunidade ${state.selectedCommunity}`;
+  } else {
+    focusEdges = analysis.topEdges;
+    for (const edge of focusEdges) {
+      nodeSet.add(edge.s);
+      nodeSet.add(edge.t);
+    }
+  }
+
+  return { nodeSet, edges: focusEdges, label };
+}
+
+function drawAnalysisMap(analysis) {
+  const { ctx, width, height } = setupCanvas(els.analysisMapCanvas);
+  const focus = analysisMapFocus(analysis);
+  if (!focus.nodeSet.size) {
+    drawNoData(ctx, width, height, "sem subgrafo para o filtro atual");
+    els.analysisMapMeta.textContent = "sem dados";
+    return;
+  }
+
+  const bounds = state.data?.meta.bounds || currentBounds();
+  const dx = Math.max(1, bounds.maxX - bounds.minX);
+  const dy = Math.max(1, bounds.maxY - bounds.minY);
+  const scale = Math.min((width - 56) / dx, (height - 56) / dy);
+  const offsetX = width / 2 - ((bounds.minX + bounds.maxX) / 2) * scale;
+  const offsetY = height / 2 - ((bounds.minY + bounds.maxY) / 2) * scale;
+  const point = (node) => ({
+    x: node.x * scale + offsetX,
+    y: node.y * scale + offsetY,
+  });
+
+  ctx.save();
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(0, 0, width, height);
+
+  const contextEdges = analysis.topEdges.slice(0, Math.min(2200, analysis.topEdges.length));
+  ctx.lineWidth = 0.6;
+  for (const edge of contextEdges) {
+    const source = state.nodes[edge.s];
+    const target = state.nodes[edge.t];
+    if (!source || !target) continue;
+    const a = point(source);
+    const b = point(target);
+    ctx.strokeStyle = edge.n > edge.p ? "rgba(220,53,88,0.045)" : "rgba(83,118,217,0.05)";
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "rgba(105,115,134,0.22)";
+  const nodeStep = Math.max(1, Math.ceil(state.nodes.length / 18000));
+  for (let index = 0; index < state.nodes.length; index += nodeStep) {
+    if (focus.nodeSet.has(index)) continue;
+    const node = state.nodes[index];
+    const p = point(node);
+    ctx.fillRect(p.x, p.y, 1.1, 1.1);
+  }
+
+  const maxWeight = focus.edges.reduce((currentMax, edge) => Math.max(currentMax, edge.w), 1);
+  const focusEdges = [...focus.edges].sort((a, b) => b.w - a.w).slice(0, 18000);
+  for (const edge of focusEdges) {
+    const source = state.nodes[edge.s];
+    const target = state.nodes[edge.t];
+    if (!source || !target) continue;
+    const a = point(source);
+    const b = point(target);
+    ctx.strokeStyle = edge.n > edge.p ? "rgba(220,53,88,0.34)" : "rgba(37,99,235,0.30)";
+    ctx.lineWidth = 0.45 + 3.2 * Math.sqrt(edge.w / maxWeight);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+
+  const focusNodes = [...focus.nodeSet]
+    .map((nodeIndex) => ({ nodeIndex, node: state.nodes[nodeIndex] }))
+    .filter((item) => item.node)
+    .sort((a, b) => b.node.totalStrength - a.node.totalStrength);
+  for (const { node } of focusNodes) {
+    const p = point(node);
+    ctx.fillStyle = nodeVisualColor(node);
+    ctx.strokeStyle = "rgba(17,24,39,0.55)";
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(2.6, Math.min(9, node.size * 0.62)), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#111827";
+  ctx.font = "800 11px Inter, Segoe UI, sans-serif";
+  ctx.textAlign = "center";
+  for (const { node } of focusNodes.slice(0, 14)) {
+    const p = point(node);
+    const selected = state.selectedNode === node;
+    if (selected) {
+      ctx.strokeStyle = "#111827";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(8, node.size * 0.72), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillText(node.id, p.x, p.y - 10);
+  }
+
+  ctx.restore();
+  els.analysisMapMeta.textContent = `${focus.label} | ${formatNumber(focus.nodeSet.size)} vertices | ${formatNumber(focus.edges.length)} arestas`;
 }
 
 function drawEgo(analysis) {
@@ -958,10 +1235,12 @@ async function runAnalysis() {
     state.edges = await loadEdges(state.layer);
   }
   state.lastAnalysis = computeAnalysis();
-  els.analysisTitle.textContent = `Camada ${state.layer} | sinal ${state.sentiment} | peso >= ${state.minWeight}`;
+  els.analysisTitle.textContent = `Camada ${state.layer} | ${roleFilterLabel()} | sinal ${state.sentiment} | peso >= ${state.minWeight} | ${timelineLabel()}`;
   drawDistributions(state.lastAnalysis);
+  drawAnalysisMap(state.lastAnalysis);
   drawEgo(state.lastAnalysis);
   drawTopEdges(state.lastAnalysis);
+  updateStats();
 }
 
 function downloadText(filename, mimeType, text) {
@@ -983,7 +1262,10 @@ function exportAnalysisJson() {
     filters: {
       layer: analysis.layer,
       sentiment: analysis.sentiment,
+      roleFilter: state.roleFilter,
       minWeight: analysis.minWeight,
+      timeline: timelineLabel(),
+      timelineSource: state.timelineSource,
       egoCenter: analysis.center,
       topEdges: state.topEdgesLimit,
     },
@@ -1009,13 +1291,15 @@ function edgeToRow(edge) {
     positive: edge.p,
     negative: edge.n,
     sentimentBalance: edge.b,
+    firstSeen: edge.f || edge.firstSeen || "",
+    lastSeen: edge.l || edge.lastSeen || "",
   };
 }
 
 function exportAnalysisCsv() {
   if (!state.lastAnalysis) runAnalysis();
   const rows = state.lastAnalysis.topEdges.map(edgeToRow);
-  const header = ["source", "target", "weight", "positive", "negative", "sentimentBalance"];
+  const header = ["source", "target", "weight", "positive", "negative", "sentimentBalance", "firstSeen", "lastSeen"];
   const csv = [
     header.join(","),
     ...rows.map((row) =>
@@ -1448,11 +1732,12 @@ function projectCompareEdgesForScope() {
 
   if (scope === "ego") {
     const query = els.searchInput.value.trim().toLowerCase();
-    const center = query && state.nodeById.has(query)
+    const queryNode = query && state.nodeById.has(query) ? state.nodeById.get(query) : null;
+    const center = queryNode && nodeVisibleByRole(queryNode)
       ? state.nodeById.get(query)
       : state.selectedNode;
-    if (!center) {
-      throw new Error("Busque ou selecione um subreddit antes de comparar a rede ego.");
+    if (!center || !nodeVisibleByRole(center)) {
+      throw new Error("Busque ou selecione um subreddit visivel no filtro de papel antes de comparar a rede ego.");
     }
     const centerIndex = state.nodes.indexOf(center);
     const nodeSet = new Set([centerIndex]);
@@ -1571,7 +1856,7 @@ function renderCompareResults() {
     els.compareSummary.innerHTML = `
       <strong>Projeto classificado como ${project.metrics.classification.label}</strong>
       ${project.metrics.classification.reason}
-      <div class="metric-line"><span>camada/filtro</span><strong>${state.layer}, sinal ${state.sentiment}, peso >= ${state.minWeight}</strong></div>
+      <div class="metric-line"><span>camada/filtro</span><strong>${state.layer}, ${roleFilterLabel()}, sinal ${state.sentiment}, peso >= ${state.minWeight}</strong></div>
       <div class="metric-line"><span>componente principal</span><strong>${pct.format(project.metrics.componentShare)}</strong></div>
     `;
   } else {
@@ -1686,6 +1971,10 @@ function searchNode() {
     els.selectionPanel.textContent = `Subreddit "${query}" nao encontrado.`;
     return;
   }
+  if (!nodeVisibleByRole(node)) {
+    els.selectionPanel.textContent = `Subreddit "${query}" existe, mas esta fora do filtro de papel atual.`;
+    return;
+  }
   setSelectedNode(node);
   const p = worldToScreen(getNodeX(node), getNodeY(node));
   state.transform.x += state.width / 2 - p.x;
@@ -1695,7 +1984,9 @@ function searchNode() {
 }
 
 function attachEvents() {
-  window.addEventListener("resize", resizeCanvas);
+  window.addEventListener("resize", () => {
+    resizeCanvas();
+  });
   canvas.addEventListener("wheel", (event) => {
     event.preventDefault();
     zoomAt(event.offsetX, event.offsetY, event.deltaY);
@@ -1758,6 +2049,29 @@ function attachEvents() {
     state.influenceComputedFor = "";
     computeInfluenceMetrics();
     invalidateProjectCompare();
+    updateStats();
+    if (state.mode === "analysis") runAnalysis();
+    draw();
+  });
+  els.roleSelect.addEventListener("change", async () => {
+    state.roleFilter = els.roleSelect.value;
+    clearHiddenSelection();
+    if (!state.edges.length) {
+      state.edges = await loadEdges(state.layer);
+    }
+    state.influenceComputedFor = "";
+    computeInfluenceMetrics();
+    invalidateProjectCompare();
+    updateStats();
+    if (state.mode === "analysis") runAnalysis();
+    draw();
+  });
+  els.timelineInput.addEventListener("input", () => {
+    state.timeWindowIndex = Number(els.timelineInput.value);
+    state.influenceComputedFor = "";
+    computeInfluenceMetrics();
+    invalidateProjectCompare();
+    updateStats();
     if (state.mode === "analysis") runAnalysis();
     draw();
   });
@@ -1767,6 +2081,7 @@ function attachEvents() {
     state.influenceComputedFor = "";
     computeInfluenceMetrics();
     invalidateProjectCompare();
+    updateStats();
     if (state.mode === "analysis") runAnalysis();
     draw();
   });
@@ -1781,6 +2096,7 @@ function attachEvents() {
       state.edges = await loadEdges(state.layer);
       state.influenceComputedFor = "";
       computeInfluenceMetrics();
+      updateStats();
     }
     draw();
   });
@@ -1857,6 +2173,9 @@ window.redditGraphApp = {
     layoutMode: state.layoutMode,
     influenceMode: state.influenceMode,
     sentiment: state.sentiment,
+    roleFilter: state.roleFilter,
+    timeWindowIndex: state.timeWindowIndex,
+    timelineSource: state.timelineSource,
     minWeight: state.minWeight,
     topEdgesLimit: state.topEdgesLimit,
     nodes: state.nodes.length,

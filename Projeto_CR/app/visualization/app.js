@@ -2154,6 +2154,11 @@ async function init() {
   updateInfluenceLegend();
   renderCommunities();
   loadBuiltInComparisonDatasets();
+  if (state.layoutMode === "dispersed") {
+    state.edges = await loadEdges(state.layer);
+    computeInfluenceMetrics();
+    updateStats();
+  }
   loading.hidden = true;
   loading.classList.add("is-hidden");
   fitToGraph();

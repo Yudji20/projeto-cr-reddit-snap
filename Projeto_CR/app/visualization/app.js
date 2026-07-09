@@ -2,7 +2,7 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260708-map-time-1";
+const ASSET_VERSION = "20260709-click-toggle-1";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
@@ -606,6 +606,18 @@ function nearestNode(screenX, screenY) {
     }
   }
   return best;
+}
+
+function pointHitsNode(node, screenX, screenY) {
+  if (!node || !nodeVisibleByRole(node)) return false;
+  if (state.layoutMode === "communities" && state.selectedCommunity !== null && node.community !== state.selectedCommunity) return false;
+  const p = worldToScreen(getNodeX(node), getNodeY(node));
+  const dx = p.x - screenX;
+  const dy = p.y - screenY;
+  const distance = dx * dx + dy * dy;
+  const visualRadius = nodeVisualRadius(node) + 10;
+  const threshold = Math.max(100, visualRadius * visualRadius, node.size * node.size * state.transform.scale * 2.4);
+  return distance < threshold;
 }
 
 function nodeDetails(node) {
@@ -2021,8 +2033,28 @@ function attachEvents() {
   canvas.addEventListener("pointerup", (event) => {
     state.dragging = false;
     canvas.releasePointerCapture(event.pointerId);
-    if (!state.moved && state.hoverNode) {
-      setSelectedNode(state.hoverNode);
+    if (!state.moved) {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      if (pointHitsNode(state.selectedNode, x, y)) {
+        state.selectedCommunity = null;
+        state.hoverNode = null;
+        tooltip.hidden = true;
+        setSelectedNode(null);
+        return;
+      }
+      const clickedNode = nearestNode(x, y);
+      state.hoverNode = clickedNode;
+      if (clickedNode) {
+        if (clickedNode === state.selectedNode) {
+          state.selectedCommunity = null;
+          setSelectedNode(null);
+        } else {
+          setSelectedNode(clickedNode);
+        }
+        return;
+      }
     }
     draw();
   });

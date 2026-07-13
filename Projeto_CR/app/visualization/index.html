@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Reddit SNAP Graph Explorer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260708-map-time-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260713-formulas-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -23,6 +23,14 @@
           </header>
 
           <div class="analysis-grid">
+            <article class="analysis-card analysis-card-wide analysis-card-text">
+              <header>
+                <h3>Metricas do grafo</h3>
+                <span id="cheapMetricsMeta">-</span>
+              </header>
+              <div id="cheapMetricsPanel" class="metrics-panel"></div>
+            </article>
+
             <article class="analysis-card analysis-card-wide">
               <header>
                 <h3>Distribuicoes estruturais</h3>
@@ -53,6 +61,92 @@
                 <span id="topEdgesMeta">-</span>
               </header>
               <canvas id="topEdgesCanvas"></canvas>
+            </article>
+
+            <article class="analysis-card analysis-card-wide analysis-card-text">
+              <header>
+                <h3>Formulario</h3>
+              </header>
+              <div class="formula-panel">
+                <p>
+                  Considere o grafo dirigido e ponderado G = (V, E), em que V e o conjunto de subreddits,
+                  E e o conjunto de links origem -> destino, n = |V|, m = |E| e W e a soma dos pesos das arestas.
+                </p>
+
+                <div class="formula-grid">
+                  <section class="formula-item">
+                    <h4>Vertices</h4>
+                    <code>n = |V|</code>
+                    <p>Quantidade de subreddits que aparecem como origem ou destino no filtro atual.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Arestas</h4>
+                    <code>m = |E|</code>
+                    <p>Quantidade de pares dirigidos origem -> destino considerados no grafo filtrado.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Densidade</h4>
+                    <code>d = m / (n * (n - 1))</code>
+                    <p>Proporcao entre as arestas existentes e todas as arestas dirigidas possiveis sem laco.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Grau medio</h4>
+                    <code>k_medio = 2m / n</code>
+                    <p>Media do grau total dos vertices. Em grafo dirigido, k_in medio = m/n e k_out medio = m/n.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Forca media</h4>
+                    <code>s_medio = 2W / n</code>
+                    <p>Media da forca total dos vertices, somando pesos recebidos e enviados.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Reciprocidade</h4>
+                    <code>r = arestas com volta / m</code>
+                    <p>Frequencia de links em que existe i -> j e tambem j -> i.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Componentes fracas</h4>
+                    <code>contar grupos conectados ignorando a direcao</code>
+                    <p>Mostra quantos blocos ficam conectados quando as setas das arestas sao desconsideradas.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Maior componente</h4>
+                    <code>maior_share = maior_componente / n</code>
+                    <p>Tamanho do maior grupo conectado e sua participacao no total de vertices.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Negatividade</h4>
+                    <code>negatividade = negativos / (positivos + negativos)</code>
+                    <p>Proporcao de links classificados como negativos no filtro atual.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Centralidade de grau</h4>
+                    <code>C_D(v) = k_in(v) + k_out(v)</code>
+                    <p>Conta quantas conexoes diretas chegam e saem de um subreddit.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Forca total</h4>
+                    <code>s(v) = s_in(v) + s_out(v)</code>
+                    <p>Soma os pesos das conexoes recebidas e enviadas por um subreddit.</p>
+                  </section>
+
+                  <section class="formula-item">
+                    <h4>Peso da aresta</h4>
+                    <code>w(i,j) = ocorrencias de i -> j</code>
+                    <p>Quantidade de hyperlinks agregados entre o subreddit de origem e o subreddit de destino.</p>
+                  </section>
+                </div>
+              </div>
             </article>
           </div>
         </section>
@@ -305,6 +399,6 @@
       </aside>
     </main>
 
-    <script src="./app.js?v=20260709-click-toggle-1"></script>
+    <script src="./app.js?v=20260713-formulas-1"></script>
   </body>
 </html>

@@ -7,6 +7,8 @@ const ASSET_VERSION = "20260709-click-toggle-1";
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
   analysisTitle: document.getElementById("analysisTitle"),
+  cheapMetricsPanel: document.getElementById("cheapMetricsPanel"),
+  cheapMetricsMeta: document.getElementById("cheapMetricsMeta"),
   distributionCanvas: document.getElementById("distributionCanvas"),
   distributionMeta: document.getElementById("distributionMeta"),
   analysisMapCanvas: document.getElementById("analysisMapCanvas"),
@@ -814,6 +816,7 @@ function computeAnalysis() {
     outDegree: outDegree.get(id) || 0,
   }));
 
+  const cheapMetrics = computeCheapMetrics(edges, nodeRows);
   const topEdges = [...edges]
     .sort((a, b) => b.w - a.w)
     .slice(0, state.topEdgesLimit);
@@ -835,6 +838,7 @@ function computeAnalysis() {
     sentiment: state.sentiment,
     minWeight: state.minWeight,
     center,
+    cheapMetrics,
     nodeRows,
     edgeWeights,
     topEdges,
@@ -843,6 +847,84 @@ function computeAnalysis() {
     egoOutgoing: outgoing.slice(0, 24),
     edgeCount: edges.length,
     nodeCount: nodeRows.length,
+  };
+}
+
+function computeCheapMetrics(edges, nodeRows) {
+  const nodeIndexSet = new Set();
+  const undirectedAdjacency = new Map();
+  const directedPairs = new Set();
+  let totalWeight = 0;
+  let positiveLinks = 0;
+  let negativeLinks = 0;
+
+  for (const edge of edges) {
+    nodeIndexSet.add(edge.s);
+    nodeIndexSet.add(edge.t);
+    directedPairs.add(`${edge.s}->${edge.t}`);
+    totalWeight += edge.w;
+    positiveLinks += edge.p || 0;
+    negativeLinks += edge.n || 0;
+
+    if (!undirectedAdjacency.has(edge.s)) undirectedAdjacency.set(edge.s, new Set());
+    if (!undirectedAdjacency.has(edge.t)) undirectedAdjacency.set(edge.t, new Set());
+    undirectedAdjacency.get(edge.s).add(edge.t);
+    undirectedAdjacency.get(edge.t).add(edge.s);
+  }
+
+  let reciprocalEdges = 0;
+  for (const edge of edges) {
+    if (directedPairs.has(`${edge.t}->${edge.s}`)) reciprocalEdges += 1;
+  }
+
+  const visited = new Set();
+  const componentSizes = [];
+  for (const nodeIndex of nodeIndexSet) {
+    if (visited.has(nodeIndex)) continue;
+    const stack = [nodeIndex];
+    visited.add(nodeIndex);
+    let size = 0;
+    while (stack.length) {
+      const current = stack.pop();
+      size += 1;
+      for (const next of undirectedAdjacency.get(current) || []) {
+        if (visited.has(next)) continue;
+        visited.add(next);
+        stack.push(next);
+      }
+    }
+    componentSizes.push(size);
+  }
+  componentSizes.sort((a, b) => b - a);
+
+  const nodeCount = nodeRows.length;
+  const edgeCount = edges.length;
+  const signedTotal = positiveLinks + negativeLinks;
+  const topByTotalDegree = [...nodeRows]
+    .sort((a, b) => (b.inDegree + b.outDegree) - (a.inDegree + a.outDegree))
+    .slice(0, 10);
+  const topByTotalStrength = [...nodeRows]
+    .sort((a, b) => b.totalStrength - a.totalStrength)
+    .slice(0, 10);
+
+  return {
+    nodeCount,
+    edgeCount,
+    density: nodeCount > 1 ? edgeCount / (nodeCount * (nodeCount - 1)) : 0,
+    avgInDegree: nodeCount ? edgeCount / nodeCount : 0,
+    avgOutDegree: nodeCount ? edgeCount / nodeCount : 0,
+    avgTotalDegree: nodeCount ? (2 * edgeCount) / nodeCount : 0,
+    avgTotalStrength: nodeCount ? (2 * totalWeight) / nodeCount : 0,
+    totalWeight,
+    positiveLinks,
+    negativeLinks,
+    negativeShare: signedTotal ? negativeLinks / signedTotal : 0,
+    reciprocity: edgeCount ? reciprocalEdges / edgeCount : 0,
+    weakComponentCount: componentSizes.length,
+    largestWeakComponent: componentSizes[0] || 0,
+    largestWeakComponentShare: nodeCount ? (componentSizes[0] || 0) / nodeCount : 0,
+    topByTotalDegree,
+    topByTotalStrength,
   };
 }
 
@@ -963,6 +1045,66 @@ function drawDistributions(analysis) {
     "#e76f51",
   );
   els.distributionMeta.textContent = `${formatNumber(analysis.nodeCount)} vertices | ${formatNumber(analysis.edgeCount)} arestas`;
+}
+
+function metricLine(label, value) {
+  return `
+    <div class="metric-tile">
+      <span>${label}</span>
+      <strong>${value}</strong>
+    </div>
+  `;
+}
+
+function rankingTable(title, rows, valueLabel, valueGetter) {
+  const tableRows = rows.map((row) => `
+    <tr>
+      <td>${row.id}</td>
+      <td>${formatNumber(valueGetter(row))}</td>
+    </tr>
+  `).join("");
+  return `
+    <section class="metric-ranking">
+      <h4>${title}</h4>
+      <table>
+        <thead>
+          <tr><th>subreddit</th><th>${valueLabel}</th></tr>
+        </thead>
+        <tbody>${tableRows || '<tr><td colspan="2">sem dados</td></tr>'}</tbody>
+      </table>
+    </section>
+  `;
+}
+
+function renderCheapMetrics(analysis) {
+  const metrics = analysis.cheapMetrics;
+  els.cheapMetricsMeta.textContent = `${formatNumber(metrics.nodeCount)} vertices incidentes | filtro atual`;
+  els.cheapMetricsPanel.innerHTML = `
+    <div class="metric-tiles">
+      ${metricLine("arestas", formatNumber(metrics.edgeCount))}
+      ${metricLine("densidade", decimal.format(metrics.density))}
+      ${metricLine("grau medio", decimal.format(metrics.avgTotalDegree))}
+      ${metricLine("forca media", decimal.format(metrics.avgTotalStrength))}
+      ${metricLine("reciprocidade", pct.format(metrics.reciprocity))}
+      ${metricLine("componentes fracas", formatNumber(metrics.weakComponentCount))}
+      ${metricLine("maior componente", `${formatNumber(metrics.largestWeakComponent)} (${pct.format(metrics.largestWeakComponentShare)})`)}
+      ${metricLine("negatividade", pct.format(metrics.negativeShare))}
+    </div>
+    <div class="metric-rankings">
+      ${rankingTable(
+        "Centralidade de grau",
+        metrics.topByTotalDegree,
+        "grau",
+        (row) => row.inDegree + row.outDegree,
+      )}
+      ${rankingTable(
+        "Forca total",
+        metrics.topByTotalStrength,
+        "forca",
+        (row) => row.totalStrength,
+      )}
+    </div>
+  `;
 }
 
 function analysisMapFocus(analysis) {
@@ -1248,6 +1390,7 @@ async function runAnalysis() {
   }
   state.lastAnalysis = computeAnalysis();
   els.analysisTitle.textContent = `Camada ${state.layer} | ${roleFilterLabel()} | sinal ${state.sentiment} | peso >= ${state.minWeight} | ${timelineLabel()}`;
+  renderCheapMetrics(state.lastAnalysis);
   drawDistributions(state.lastAnalysis);
   drawAnalysisMap(state.lastAnalysis);
   drawEgo(state.lastAnalysis);
@@ -1284,6 +1427,7 @@ function exportAnalysisJson() {
     summary: {
       nodeCount: analysis.nodeCount,
       edgeCount: analysis.edgeCount,
+      cheapMetrics: analysis.cheapMetrics,
     },
     topNodesByStrength: [...analysis.nodeRows]
       .sort((a, b) => b.totalStrength - a.totalStrength)

@@ -1,0 +1,6 @@
+pandas
+python-igraph
+networkx
+matplotlib
+pyvis
+duckdb

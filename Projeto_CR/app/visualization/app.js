@@ -2,7 +2,7 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260709-click-toggle-1";
+const ASSET_VERSION = "20260720-centralities-1";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
@@ -95,6 +95,9 @@ const state = {
   mode: "map",
   topEdgesLimit: 250,
   lastAnalysis: null,
+  structuralMetrics: new Map(),
+  nodeProfileCache: new Map(),
+  selectedProfileRequest: 0,
   compareDatasets: {
     project: null,
     random: null,
@@ -125,6 +128,42 @@ const compactNumber = new Intl.NumberFormat("pt-BR", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function formatDecimal(value, digits = 3) {
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(Number.isFinite(value) ? value : 0);
+}
+
+function pathMetricLabel(method) {
+  if (!method) return "pre-calculado";
+  if (method === "exact") return "exato";
+  if (method.startsWith("sampled_")) return `amostra ${method.replace("sampled_", "")}`;
+  return method;
+}
+
+function centralityMethodLabel(method) {
+  if (!method) return "pre-calculado";
+  const parts = [];
+  if (method.includes("betweenness_proxy")) parts.push("intermediacao proxy");
+  if (method.includes("distance_sampled")) parts.push("distancias por amostra");
+  if (method.includes("pagerank_weighted")) parts.push("PageRank ponderado");
+  return parts.join(" | ") || "pre-calculado";
+}
+
+function currentStructuralMetrics() {
+  return state.structuralMetrics.get(state.layer) || null;
+}
 
 const compareSlots = [
   { id: "project", name: "Projeto Reddit", expected: "projeto", status: "projectImportStatus" },
@@ -622,7 +661,63 @@ function pointHitsNode(node, screenX, screenY) {
   return distance < threshold;
 }
 
-function nodeDetails(node) {
+function connectionRows(connections) {
+  if (!connections?.length) return '<li class="connection-empty">sem conexoes no filtro</li>';
+  return connections.map((connection) => {
+    const signedTotal = Math.max(1, connection.positive + connection.negative);
+    const negativeShare = connection.negative / signedTotal;
+    const sentimentClass = negativeShare >= 0.28 ? "is-negative" : "is-positive";
+    return `
+      <li>
+        <span>
+          <strong>${escapeHtml(connection.neighbor)}</strong>
+          <small>${escapeHtml(connection.neighborCommunityLabel)} | ${escapeHtml(connection.neighborRole)}</small>
+        </span>
+        <span class="connection-weight ${sentimentClass}">${formatNumber(connection.weight)}</span>
+      </li>
+    `;
+  }).join("");
+}
+
+function selectionGraphMetrics() {
+  const metrics = currentStructuralMetrics();
+  if (!metrics) return "";
+  return `
+    <section class="selection-subsection">
+      <h3>Grafo da camada</h3>
+      <div class="metric-line"><span>ordem</span><strong>${formatNumber(metrics.node_count)}</strong></div>
+      <div class="metric-line"><span>tamanho</span><strong>${formatNumber(metrics.edge_count)}</strong></div>
+      <div class="metric-line"><span>diametro</span><strong>${formatNumber(metrics.diameter)}</strong></div>
+      <div class="metric-line"><span>numero de componentes conexas</span><strong>${formatNumber(metrics.weak_component_count)}</strong></div>
+      <div class="metric-line"><span>conectividade de vertice</span><strong>${formatNumber(metrics.vertex_connectivity)}</strong></div>
+      <div class="metric-line"><span>conectividade de aresta</span><strong>${formatNumber(metrics.edge_connectivity)}</strong></div>
+      <div class="metric-line"><span>grau medio</span><strong>${formatDecimal(metrics.average_degree, 3)}</strong></div>
+      <div class="metric-line"><span>densidade</span><strong>${formatDecimal(metrics.density_directed, 5)}</strong></div>
+    </section>
+  `;
+}
+
+function nodeCentralityDetails(profile) {
+  if (!profile) return "";
+  return `
+    <section class="selection-subsection">
+      <div class="section-title-row">
+        <h3>Centralidades do vertice</h3>
+        <span>${escapeHtml(centralityMethodLabel(profile.centralityMethod))}</span>
+      </div>
+      <div class="metric-line"><span>centralidade de grau</span><strong>${formatDecimal(profile.degreeCentrality, 6)}</strong></div>
+      <div class="metric-line"><span>centralidade de intermediacao</span><strong>${formatDecimal(profile.betweennessCentrality, 6)}</strong></div>
+      <div class="metric-line"><span>centralidade de proximidade</span><strong>${formatDecimal(profile.closenessCentrality, 6)}</strong></div>
+      <div class="metric-line"><span>centralidade de autovetor</span><strong>${formatDecimal(profile.eigenvectorCentrality, 6)}</strong></div>
+      <div class="metric-line"><span>PageRank</span><strong>${formatDecimal(profile.pagerankCentrality, 6)}</strong></div>
+      <div class="metric-line"><span>radialidade</span><strong>${formatDecimal(profile.radiality, 6)}</strong></div>
+      <div class="metric-line"><span>excentricidade</span><strong>${formatDecimal(profile.eccentricity, 3)}</strong></div>
+    </section>
+  `;
+}
+
+function nodeDetails(node, profile = null, profileState = "idle") {
+  const source = profile || node;
   const influenceDetails = state.influenceComputedFor
     ? `
     <div class="metric-line"><span>popularidade filtrada</span><strong>${formatNumber(node.popularityScore)}</strong></div>
@@ -631,25 +726,63 @@ function nodeDetails(node) {
     <div class="metric-line"><span>influencia mista</span><strong>${pct.format(node.combinedScore || 0)}</strong></div>
   `
     : "";
+  const profileStatus = profileState === "loading"
+    ? '<div class="profile-status">Carregando conexoes pre-calculadas...</div>'
+    : profileState === "error"
+      ? '<div class="profile-status is-error">Nao foi possivel carregar o perfil desta camada.</div>'
+      : "";
+  const connectionDetails = profile
+    ? `
+      <section class="connection-block">
+        <h3>Top entradas</h3>
+        <ul>${connectionRows(profile.topIncoming)}</ul>
+      </section>
+      <section class="connection-block">
+        <h3>Top saidas</h3>
+        <ul>${connectionRows(profile.topOutgoing)}</ul>
+      </section>
+    `
+    : "";
   return `
-    <strong>${node.id}</strong>
-    <div class="metric-line"><span>comunidade</span><strong>${node.communityLabel}</strong></div>
-    <div class="metric-line"><span>papel</span><strong>${node.role}</strong></div>
-    <div class="metric-line"><span>forca total</span><strong>${formatNumber(node.totalStrength)}</strong></div>
-    <div class="metric-line"><span>entrada</span><strong>${formatNumber(node.inStrength)}</strong></div>
-    <div class="metric-line"><span>saida</span><strong>${formatNumber(node.outStrength)}</strong></div>
-    <div class="metric-line"><span>PageRank</span><strong>${node.pagerank.toFixed(6)}</strong></div>
-    <div class="metric-line"><span>negatividade</span><strong>${pct.format(node.negativeShare)}</strong></div>
+    <strong>${escapeHtml(node.id)}</strong>
+    <div class="selection-layer">camada ${escapeHtml(state.layer)}</div>
+    <div class="metric-line"><span>comunidade</span><strong>${escapeHtml(source.communityLabel || node.communityLabel)}</strong></div>
+    <div class="metric-line"><span>papel</span><strong>${escapeHtml(source.role || node.role)}</strong></div>
+    <div class="metric-line"><span>grau total</span><strong>${formatNumber(source.totalDegree ?? (node.inDegree + node.outDegree))}</strong></div>
+    <div class="metric-line"><span>forca total</span><strong>${formatNumber(source.totalStrength)}</strong></div>
+    <div class="metric-line"><span>entrada</span><strong>${formatNumber(source.inStrength)}</strong></div>
+    <div class="metric-line"><span>saida</span><strong>${formatNumber(source.outStrength)}</strong></div>
+    <div class="metric-line"><span>PageRank</span><strong>${Number(source.pagerankCentrality ?? source.pagerank ?? 0).toFixed(6)}</strong></div>
+    <div class="metric-line"><span>negatividade</span><strong>${pct.format(source.negativeShare || 0)}</strong></div>
     ${influenceDetails}
+    ${selectionGraphMetrics()}
+    ${nodeCentralityDetails(profile)}
+    ${profileStatus}
+    ${connectionDetails}
   `;
+}
+
+async function renderSelectedNodeDetails(node) {
+  const requestId = ++state.selectedProfileRequest;
+  els.selectionPanel.innerHTML = nodeDetails(node, null, "loading");
+  try {
+    const profiles = await loadNodeProfiles(state.layer);
+    if (requestId !== state.selectedProfileRequest || state.selectedNode !== node) return;
+    els.selectionPanel.innerHTML = nodeDetails(node, profiles[node.id] || null, "ready");
+  } catch (error) {
+    if (requestId !== state.selectedProfileRequest || state.selectedNode !== node) return;
+    els.selectionPanel.innerHTML = nodeDetails(node, null, "error");
+    console.error(error);
+  }
 }
 
 function setSelectedNode(node) {
   state.selectedNode = node;
   if (node) {
     if (state.layoutMode === "communities") state.selectedCommunity = node.community;
-    els.selectionPanel.innerHTML = nodeDetails(node);
+    renderSelectedNodeDetails(node);
   } else {
+    state.selectedProfileRequest += 1;
     els.selectionPanel.textContent = "Passe o mouse sobre um ponto ou busque um subreddit.";
   }
   draw();
@@ -738,6 +871,22 @@ async function loadEdges(layer) {
   return edges;
 }
 
+async function loadStructuralMetrics() {
+  const response = await fetch(`./public/graph-structural-metrics.json?v=${ASSET_VERSION}`);
+  if (!response.ok) throw new Error(`Falha ao carregar graph-structural-metrics.json: ${response.status}`);
+  const rows = await response.json();
+  state.structuralMetrics = new Map(rows.map((row) => [row.layer, row]));
+}
+
+async function loadNodeProfiles(layer) {
+  if (state.nodeProfileCache.has(layer)) return state.nodeProfileCache.get(layer);
+  const response = await fetch(`./public/node-profiles-${layer}.json?v=${ASSET_VERSION}`);
+  if (!response.ok) throw new Error(`Falha ao carregar node-profiles-${layer}.json: ${response.status}`);
+  const profiles = await response.json();
+  state.nodeProfileCache.set(layer, profiles);
+  return profiles;
+}
+
 async function updateLayer() {
   state.layer = els.layerSelect.value;
   if (state.showEdges || state.edges.length > 0 || state.layoutMode === "dispersed" || state.influenceMode !== "default") {
@@ -748,6 +897,7 @@ async function updateLayer() {
   updateStats();
   invalidateProjectCompare();
   if (state.mode === "analysis") runAnalysis();
+  if (state.selectedNode) renderSelectedNodeDetails(state.selectedNode);
   draw();
 }
 
@@ -1076,10 +1226,55 @@ function rankingTable(title, rows, valueLabel, valueGetter) {
   `;
 }
 
+function structuralMetricTiles(metrics) {
+  if (!metrics) {
+    return `
+      <section class="structural-metrics">
+        <h4>Metricas do banco</h4>
+        <div class="profile-status is-error">Metricas estruturais indisponiveis para esta camada.</div>
+      </section>
+    `;
+  }
+  return `
+    <section class="structural-metrics">
+      <div class="section-title-row">
+        <h4>Metricas do banco</h4>
+        <span>${pathMetricLabel(metrics.path_metric_method)} | ${centralityMethodLabel(metrics.centrality_method)}</span>
+      </div>
+      <div class="metric-tiles structural-tiles">
+        ${metricLine("ordem", formatNumber(metrics.node_count))}
+        ${metricLine("tamanho", formatNumber(metrics.edge_count))}
+        ${metricLine("diametro", formatNumber(metrics.diameter))}
+        ${metricLine("numero de componentes conexas", formatNumber(metrics.weak_component_count))}
+        ${metricLine("conectividade de vertice", formatNumber(metrics.vertex_connectivity))}
+        ${metricLine("conectividade de aresta", formatNumber(metrics.edge_connectivity))}
+        ${metricLine("grau medio", formatDecimal(metrics.average_degree, 3))}
+        ${metricLine("densidade", formatDecimal(metrics.density_directed, 5))}
+        ${metricLine("centralidade de grau", formatDecimal(metrics.avg_degree_centrality, 6))}
+        ${metricLine("centralidade de intermediacao", formatDecimal(metrics.avg_betweenness_centrality, 6))}
+        ${metricLine("centralidade de proximidade", formatDecimal(metrics.avg_closeness_centrality, 6))}
+        ${metricLine("centralidade de autovetor", formatDecimal(metrics.avg_eigenvector_centrality, 6))}
+        ${metricLine("PageRank", formatDecimal(metrics.avg_pagerank_centrality, 6))}
+        ${metricLine("radialidade", formatDecimal(metrics.avg_radiality, 6))}
+        ${metricLine("excentricidade", formatDecimal(metrics.avg_eccentricity, 3))}
+      </div>
+    </section>
+  `;
+}
+
 function renderCheapMetrics(analysis) {
   const metrics = analysis.cheapMetrics;
-  els.cheapMetricsMeta.textContent = `${formatNumber(metrics.nodeCount)} vertices incidentes | filtro atual`;
+  const structuralMetrics = currentStructuralMetrics();
+  els.cheapMetricsMeta.textContent = structuralMetrics
+    ? `banco ${pathMetricLabel(structuralMetrics.path_metric_method)} | filtro atual`
+    : `${formatNumber(metrics.nodeCount)} vertices incidentes | filtro atual`;
   els.cheapMetricsPanel.innerHTML = `
+    ${structuralMetricTiles(structuralMetrics)}
+    <section class="filtered-metrics">
+      <div class="section-title-row">
+        <h4>Filtro atual</h4>
+        <span>${formatNumber(metrics.nodeCount)} vertices incidentes</span>
+      </div>
     <div class="metric-tiles">
       ${metricLine("arestas", formatNumber(metrics.edgeCount))}
       ${metricLine("densidade", decimal.format(metrics.density))}
@@ -1090,6 +1285,7 @@ function renderCheapMetrics(analysis) {
       ${metricLine("maior componente", `${formatNumber(metrics.largestWeakComponent)} (${pct.format(metrics.largestWeakComponentShare)})`)}
       ${metricLine("negatividade", pct.format(metrics.negativeShare))}
     </div>
+    </section>
     <div class="metric-rankings">
       ${rankingTable(
         "Centralidade de grau",
@@ -1428,6 +1624,7 @@ function exportAnalysisJson() {
       nodeCount: analysis.nodeCount,
       edgeCount: analysis.edgeCount,
       cheapMetrics: analysis.cheapMetrics,
+      structuralMetrics: currentStructuralMetrics(),
     },
     topNodesByStrength: [...analysis.nodeRows]
       .sort((a, b) => b.totalStrength - a.totalStrength)
@@ -2321,6 +2518,7 @@ async function init() {
   const response = await fetch(`./public/graph-core.json?v=${ASSET_VERSION}`);
   if (!response.ok) throw new Error(`Falha ao carregar graph-core.json: ${response.status}`);
   state.data = await response.json();
+  await loadStructuralMetrics();
   state.nodes = state.data.nodes;
   state.communities = state.data.communities;
   state.nodeById = new Map(state.nodes.map((node) => [node.id, node]));
@@ -2362,6 +2560,8 @@ window.redditGraphApp = {
     nodes: state.nodes.length,
     edges: state.edges.length,
     hasAnalysis: Boolean(state.lastAnalysis),
+    structuralMetricLayers: state.structuralMetrics.size,
+    profileLayersLoaded: state.nodeProfileCache.size,
     compareResults: state.compareResults.length,
   }),
 };

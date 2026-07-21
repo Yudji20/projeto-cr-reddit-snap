@@ -2,7 +2,7 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260720-centralities-1";
+const ASSET_VERSION = "20260721-year-timeline-1";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
@@ -82,8 +82,9 @@ const state = {
   influenceMax: { popularity: 1, bridge: 1, combined: 1 },
   sentiment: "all",
   roleFilter: "all",
-  timeWindowIndex: 11,
-  timeWindowCount: 12,
+  timeWindowIndex: 4,
+  timeWindowCount: 5,
+  timeYears: [],
   timeBounds: null,
   timelineSource: "estimated",
   minWeight: 1,
@@ -303,9 +304,20 @@ function prepareTimelineFromEdges(edges) {
     if (Number.isFinite(end)) max = Math.max(max, end);
   }
   if (Number.isFinite(min) && Number.isFinite(max) && max >= min) {
+    const minYear = new Date(min).getUTCFullYear();
+    const maxYear = new Date(max).getUTCFullYear();
+    state.timeYears = Array.from(
+      { length: Math.max(1, maxYear - minYear + 1) },
+      (_, index) => minYear + index,
+    );
+    state.timeWindowCount = state.timeYears.length;
+    state.timeWindowIndex = Math.min(state.timeWindowIndex, state.timeWindowCount - 1);
     state.timeBounds = { min, max };
     state.timelineSource = "real";
   } else {
+    state.timeYears = [];
+    state.timeWindowCount = 12;
+    state.timeWindowIndex = Math.min(state.timeWindowIndex, state.timeWindowCount - 1);
     state.timeBounds = null;
     state.timelineSource = "estimated";
   }
@@ -313,12 +325,12 @@ function prepareTimelineFromEdges(edges) {
 }
 
 function edgeTimeBucket(edge) {
-  if (state.timelineSource === "real" && state.timeBounds) {
+  if (state.timelineSource === "real" && state.timeYears.length) {
     const timestamp = edgeDateValue(edge);
     if (timestamp !== null) {
-      const span = Math.max(1, state.timeBounds.max - state.timeBounds.min);
-      const ratio = Math.max(0, Math.min(1, (timestamp - state.timeBounds.min) / span));
-      return Math.min(state.timeWindowCount - 1, Math.floor(ratio * state.timeWindowCount));
+      const year = new Date(timestamp).getUTCFullYear();
+      const firstYear = state.timeYears[0];
+      return Math.max(0, Math.min(state.timeWindowCount - 1, year - firstYear));
     }
   }
   const source = state.nodes[edge.s]?.id ?? String(edge.s);
@@ -342,10 +354,8 @@ function formatTimelineDate(timestamp) {
 }
 
 function timelineLabel() {
-  if (state.timelineSource === "real" && state.timeBounds) {
-    const span = state.timeBounds.max - state.timeBounds.min;
-    const ratio = state.timeWindowIndex / Math.max(1, state.timeWindowCount - 1);
-    return `ate ${formatTimelineDate(state.timeBounds.min + span * ratio)}`;
+  if (state.timelineSource === "real" && state.timeYears.length) {
+    return `ate ${state.timeYears[state.timeWindowIndex]}`;
   }
   return `Janela ${state.timeWindowIndex + 1}/${state.timeWindowCount}`;
 }
@@ -355,7 +365,7 @@ function updateTimelineControls() {
   els.timelineInput.max = String(state.timeWindowCount - 1);
   els.timelineInput.value = String(state.timeWindowIndex);
   els.timelineOutput.textContent = timelineLabel();
-  const sourceLabel = state.timelineSource === "real" ? "periodo acumulado" : "janela estimada";
+  const sourceLabel = state.timelineSource === "real" ? "anos acumulados" : "janela estimada";
   const edgeLabel = state.edges.length ? ` | ${formatNumber(getFilteredEdges().length)} arestas` : "";
   els.timelineMeta.textContent = `${sourceLabel}${edgeLabel}`;
 }

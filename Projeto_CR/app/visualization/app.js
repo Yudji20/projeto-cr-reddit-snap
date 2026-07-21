@@ -2,7 +2,7 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260721-year-timeline-1";
+const ASSET_VERSION = "20260721-year-timeline-2";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),

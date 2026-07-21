@@ -2,7 +2,7 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260721-directed-edges-1";
+const ASSET_VERSION = "20260721-directed-edges-2";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
@@ -556,8 +556,8 @@ function drawEdges() {
   let drawn = 0;
   const maxDuringDrag = 55000;
   const arrowHeadSize = dispersed
-    ? Math.max(4.5, Math.min(8, state.transform.scale * 0.18))
-    : Math.max(3.5, Math.min(6.5, state.transform.scale * 0.08));
+    ? Math.max(6, Math.min(11, state.transform.scale * 0.24))
+    : Math.max(5, Math.min(8, state.transform.scale * 0.1));
   for (const edge of edges) {
     if (!edgeVisible(edge)) continue;
     if (state.dragging && drawn > maxDuringDrag) break;
@@ -667,7 +667,8 @@ function drawFocusLinks() {
       ? (dispersed ? "rgba(220,53,88,0.92)" : "rgba(220,53,88,0.72)")
       : (dispersed ? "rgba(37,99,235,0.88)" : "rgba(65,96,174,0.64)");
     ctx.fillStyle = ctx.strokeStyle;
-    drawDirectedSegment(sourcePoint, targetPoint, nodeVisualRadius(target), dispersed ? 12 : 9);
+    const selectedTargetPadding = target === state.selectedNode ? 10 : 3;
+    drawDirectedSegment(sourcePoint, targetPoint, nodeVisualRadius(target) + selectedTargetPadding, dispersed ? 18 : 13);
     drawn += 1;
   }
   ctx.restore();

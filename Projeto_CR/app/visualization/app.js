@@ -2,7 +2,7 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260721-year-timeline-2";
+const ASSET_VERSION = "20260721-directed-edges-1";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
@@ -502,6 +502,44 @@ async function refreshInfluenceView({ refit = false } = {}) {
   draw();
 }
 
+function drawDirectedSegment(start, end, targetRadius = 2.5, headSize = 7) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 6) return;
+
+  const ux = dx / length;
+  const uy = dy / length;
+  const lineStart = {
+    x: start.x + ux * 2,
+    y: start.y + uy * 2,
+  };
+  const lineEnd = {
+    x: end.x - ux * Math.max(2, targetRadius + headSize * 0.45),
+    y: end.y - uy * Math.max(2, targetRadius + headSize * 0.45),
+  };
+
+  ctx.beginPath();
+  ctx.moveTo(lineStart.x, lineStart.y);
+  ctx.lineTo(lineEnd.x, lineEnd.y);
+  ctx.stroke();
+
+  const angle = Math.atan2(dy, dx);
+  const wing = headSize * 0.62;
+  ctx.beginPath();
+  ctx.moveTo(lineEnd.x + ux * headSize * 0.25, lineEnd.y + uy * headSize * 0.25);
+  ctx.lineTo(
+    lineEnd.x - Math.cos(angle - Math.PI / 6) * wing,
+    lineEnd.y - Math.sin(angle - Math.PI / 6) * wing,
+  );
+  ctx.lineTo(
+    lineEnd.x - Math.cos(angle + Math.PI / 6) * wing,
+    lineEnd.y - Math.sin(angle + Math.PI / 6) * wing,
+  );
+  ctx.closePath();
+  ctx.fill();
+}
+
 function drawEdges() {
   if (!state.showEdges) return;
   const edges = state.edges;
@@ -517,6 +555,9 @@ function drawEdges() {
 
   let drawn = 0;
   const maxDuringDrag = 55000;
+  const arrowHeadSize = dispersed
+    ? Math.max(4.5, Math.min(8, state.transform.scale * 0.18))
+    : Math.max(3.5, Math.min(6.5, state.transform.scale * 0.08));
   for (const edge of edges) {
     if (!edgeVisible(edge)) continue;
     if (state.dragging && drawn > maxDuringDrag) break;
@@ -536,10 +577,8 @@ function drawEdges() {
     ctx.strokeStyle = edge.n > edge.p
       ? (dispersed ? "rgba(220,53,88,0.72)" : "rgba(220,53,88,0.35)")
       : (dispersed ? "rgba(50,84,170,0.62)" : "rgba(65,96,174,0.28)");
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    drawDirectedSegment(a, b, nodeVisualRadius(t), arrowHeadSize);
     drawn += 1;
   }
   ctx.restore();
@@ -615,15 +654,20 @@ function drawFocusLinks() {
     if (drawn > 420) break;
     if (!edgeVisible(edge)) continue;
     if (edge.s !== selectedIndex && edge.t !== selectedIndex) continue;
-    const other = state.nodes[edge.s === selectedIndex ? edge.t : edge.s];
-    const p = worldToScreen(getNodeX(other), getNodeY(other));
+    const source = state.nodes[edge.s];
+    const target = state.nodes[edge.t];
+    if (!source || !target) continue;
+    const sourcePoint = edge.s === selectedIndex
+      ? selected
+      : worldToScreen(getNodeX(source), getNodeY(source));
+    const targetPoint = edge.t === selectedIndex
+      ? selected
+      : worldToScreen(getNodeX(target), getNodeY(target));
     ctx.strokeStyle = edge.n > edge.p
       ? (dispersed ? "rgba(220,53,88,0.92)" : "rgba(220,53,88,0.72)")
       : (dispersed ? "rgba(37,99,235,0.88)" : "rgba(65,96,174,0.64)");
-    ctx.beginPath();
-    ctx.moveTo(selected.x, selected.y);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    drawDirectedSegment(sourcePoint, targetPoint, nodeVisualRadius(target), dispersed ? 12 : 9);
     drawn += 1;
   }
   ctx.restore();

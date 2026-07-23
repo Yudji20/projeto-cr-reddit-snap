@@ -2,7 +2,7 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260721-directed-edges-2";
+const ASSET_VERSION = "20260723-scoped-metrics-1";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
@@ -51,6 +51,7 @@ const els = {
   influenceLegend: document.getElementById("influenceLegend"),
   sentimentSelect: document.getElementById("sentimentSelect"),
   roleSelect: document.getElementById("roleSelect"),
+  componentScopeSelect: document.getElementById("componentScopeSelect"),
   timelineInput: document.getElementById("timelineInput"),
   timelineOutput: document.getElementById("timelineOutput"),
   timelineMeta: document.getElementById("timelineMeta"),
@@ -82,6 +83,8 @@ const state = {
   influenceMax: { popularity: 1, bridge: 1, combined: 1 },
   sentiment: "all",
   roleFilter: "all",
+  componentScope: "full",
+  componentScopeCache: new Map(),
   timeWindowIndex: 4,
   timeWindowCount: 5,
   timeYears: [],
@@ -163,7 +166,10 @@ function centralityMethodLabel(method) {
 }
 
 function currentStructuralMetrics() {
-  return state.structuralMetrics.get(state.layer) || null;
+  const scope = state.componentScope === "largest" ? "largest_component" : "full";
+  return state.structuralMetrics.get(`${state.layer}:${scope}`)
+    || state.structuralMetrics.get(`${state.layer}:full`)
+    || null;
 }
 
 const compareSlots = [
@@ -186,6 +192,12 @@ function roleFilterLabel() {
     misto: "mistos",
   };
   return labels[state.roleFilter] || state.roleFilter;
+}
+
+function componentScopeLabel() {
+  return state.componentScope === "largest"
+    ? "maior componente conectada"
+    : "rede completa";
 }
 
 function hashString(value) {
@@ -212,6 +224,28 @@ function getNodeY(node) {
 function currentBounds() {
   if (state.layoutMode !== "dispersed") return state.data?.meta.bounds;
   return state.scatterBounds;
+}
+
+function currentVisibleBounds() {
+  const bounds = {
+    minX: Infinity,
+    maxX: -Infinity,
+    minY: Infinity,
+    maxY: -Infinity,
+  };
+  let count = 0;
+  for (const node of state.nodes) {
+    if (!nodeVisibleByRole(node)) continue;
+    const x = getNodeX(node);
+    const y = getNodeY(node);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    bounds.minX = Math.min(bounds.minX, x);
+    bounds.maxX = Math.max(bounds.maxX, x);
+    bounds.minY = Math.min(bounds.minY, y);
+    bounds.maxY = Math.max(bounds.maxY, y);
+    count += 1;
+  }
+  return count ? bounds : null;
 }
 
 function influenceRatio(node, key) {
@@ -282,7 +316,7 @@ function fitToGraph(bounds = state.data?.meta.bounds) {
 }
 
 function fitToCurrentLayout() {
-  fitToGraph(currentBounds());
+  fitToGraph(currentVisibleBounds() || currentBounds());
 }
 
 function edgeDateValue(edge) {
@@ -370,12 +404,95 @@ function updateTimelineControls() {
   els.timelineMeta.textContent = `${sourceLabel}${edgeLabel}`;
 }
 
+function computeLayerComponentScope(edges) {
+  const parent = new Map();
+  const size = new Map();
+
+  function add(nodeIndex) {
+    if (parent.has(nodeIndex)) return;
+    parent.set(nodeIndex, nodeIndex);
+    size.set(nodeIndex, 1);
+  }
+
+  function find(nodeIndex) {
+    let root = nodeIndex;
+    while (parent.get(root) !== root) root = parent.get(root);
+    while (parent.get(nodeIndex) !== nodeIndex) {
+      const next = parent.get(nodeIndex);
+      parent.set(nodeIndex, root);
+      nodeIndex = next;
+    }
+    return root;
+  }
+
+  function union(a, b) {
+    add(a);
+    add(b);
+    let rootA = find(a);
+    let rootB = find(b);
+    if (rootA === rootB) return;
+    if ((size.get(rootA) || 1) < (size.get(rootB) || 1)) {
+      [rootA, rootB] = [rootB, rootA];
+    }
+    parent.set(rootB, rootA);
+    size.set(rootA, (size.get(rootA) || 1) + (size.get(rootB) || 1));
+  }
+
+  for (const edge of edges) {
+    union(edge.s, edge.t);
+  }
+
+  const components = new Map();
+  for (const nodeIndex of parent.keys()) {
+    const root = find(nodeIndex);
+    if (!components.has(root)) components.set(root, []);
+    components.get(root).push(nodeIndex);
+  }
+
+  const orderedComponents = [...components.values()].sort((a, b) => b.length - a.length);
+  const largestNodes = new Set(orderedComponents[0] || []);
+  const largestEdgeCount = edges.reduce(
+    (count, edge) => count + (largestNodes.has(edge.s) && largestNodes.has(edge.t) ? 1 : 0),
+    0,
+  );
+  return {
+    largestNodes,
+    largestNodeCount: largestNodes.size,
+    largestEdgeCount,
+    componentCount: orderedComponents.length,
+    totalIncidentNodes: parent.size,
+    removedNodeCount: Math.max(0, parent.size - largestNodes.size),
+    removedComponentCount: Math.max(0, orderedComponents.length - 1),
+  };
+}
+
+function cacheComponentScope(layer, edges) {
+  if (!state.componentScopeCache.has(layer)) {
+    state.componentScopeCache.set(layer, computeLayerComponentScope(edges));
+  }
+  return state.componentScopeCache.get(layer);
+}
+
+function currentComponentScopeMeta() {
+  return state.componentScopeCache.get(state.layer) || null;
+}
+
+function nodeInComponentScope(node) {
+  if (state.componentScope !== "largest") return true;
+  const meta = currentComponentScopeMeta();
+  return !meta || meta.largestNodes.has(node.index);
+}
+
 function nodeVisibleByRole(node) {
-  return state.roleFilter === "all" || node?.role === state.roleFilter;
+  if (!node) return false;
+  if (state.roleFilter !== "all" && node.role !== state.roleFilter) return false;
+  return nodeInComponentScope(node);
 }
 
 function roleFilteredNodeCount() {
-  if (state.roleFilter === "all") return state.data?.meta.nodeCount || state.nodes.length;
+  if (state.roleFilter === "all" && state.componentScope === "full") {
+    return state.data?.meta.nodeCount || state.nodes.length;
+  }
   return state.nodes.reduce((count, node) => count + (nodeVisibleByRole(node) ? 1 : 0), 0);
 }
 
@@ -876,7 +993,7 @@ function updateStats() {
     state.edges.length ? getFilteredEdges().length : state.data.meta.edgeCount[state.layer],
   );
   els.statCommunities.textContent = formatNumber(state.data.meta.communityCount);
-  els.statLayer.textContent = state.layer;
+  els.statLayer.textContent = state.componentScope === "largest" ? `${state.layer} / gigante` : state.layer;
   updateTimelineControls();
 }
 
@@ -910,6 +1027,7 @@ function setMode(mode) {
 async function loadEdges(layer) {
   if (state.edgeCache.has(layer)) {
     const cachedEdges = state.edgeCache.get(layer);
+    cacheComponentScope(layer, cachedEdges);
     prepareTimelineFromEdges(cachedEdges);
     return cachedEdges;
   }
@@ -920,6 +1038,7 @@ async function loadEdges(layer) {
   if (!response.ok) throw new Error(`Falha ao carregar edges-${layer}.json: ${response.status}`);
   const edges = await response.json();
   state.edgeCache.set(layer, edges);
+  cacheComponentScope(layer, edges);
   prepareTimelineFromEdges(edges);
   loading.hidden = true;
   loading.classList.add("is-hidden");
@@ -930,7 +1049,11 @@ async function loadStructuralMetrics() {
   const response = await fetch(`./public/graph-structural-metrics.json?v=${ASSET_VERSION}`);
   if (!response.ok) throw new Error(`Falha ao carregar graph-structural-metrics.json: ${response.status}`);
   const rows = await response.json();
-  state.structuralMetrics = new Map(rows.map((row) => [row.layer, row]));
+  state.structuralMetrics = new Map(rows.map((row) => [buildStructuralMetricKey(row), row]));
+}
+
+function buildStructuralMetricKey(row) {
+  return `${row.layer}:${row.scope || "full"}`;
 }
 
 async function loadNodeProfiles(layer) {
@@ -944,9 +1067,16 @@ async function loadNodeProfiles(layer) {
 
 async function updateLayer() {
   state.layer = els.layerSelect.value;
-  if (state.showEdges || state.edges.length > 0 || state.layoutMode === "dispersed" || state.influenceMode !== "default") {
+  if (
+    state.showEdges ||
+    state.edges.length > 0 ||
+    state.layoutMode === "dispersed" ||
+    state.influenceMode !== "default" ||
+    state.componentScope === "largest"
+  ) {
     state.edges = await loadEdges(state.layer);
   }
+  clearHiddenSelection();
   state.influenceComputedFor = "";
   computeInfluenceMetrics();
   updateStats();
@@ -1290,10 +1420,13 @@ function structuralMetricTiles(metrics) {
       </section>
     `;
   }
+  const scopeTitle = metrics.scope === "largest_component"
+    ? "maior componente conectada"
+    : "rede completa";
   return `
     <section class="structural-metrics">
       <div class="section-title-row">
-        <h4>Metricas do banco</h4>
+        <h4>Metricas do banco: ${scopeTitle}</h4>
         <span>${pathMetricLabel(metrics.path_metric_method)} | ${centralityMethodLabel(metrics.centrality_method)}</span>
       </div>
       <div class="metric-tiles structural-tiles">
@@ -1320,8 +1453,12 @@ function structuralMetricTiles(metrics) {
 function renderCheapMetrics(analysis) {
   const metrics = analysis.cheapMetrics;
   const structuralMetrics = currentStructuralMetrics();
+  const scopeMeta = currentComponentScopeMeta();
+  const scopeText = state.componentScope === "largest" && scopeMeta
+    ? `${componentScopeLabel()} | removidos ${formatNumber(scopeMeta.removedNodeCount)} vertices em ${formatNumber(scopeMeta.removedComponentCount)} componentes`
+    : componentScopeLabel();
   els.cheapMetricsMeta.textContent = structuralMetrics
-    ? `banco ${pathMetricLabel(structuralMetrics.path_metric_method)} | filtro atual`
+    ? `${scopeText} | banco ${pathMetricLabel(structuralMetrics.path_metric_method)}`
     : `${formatNumber(metrics.nodeCount)} vertices incidentes | filtro atual`;
   els.cheapMetricsPanel.innerHTML = `
     ${structuralMetricTiles(structuralMetrics)}
@@ -1336,6 +1473,7 @@ function renderCheapMetrics(analysis) {
       ${metricLine("grau medio", decimal.format(metrics.avgTotalDegree))}
       ${metricLine("forca media", decimal.format(metrics.avgTotalStrength))}
       ${metricLine("reciprocidade", pct.format(metrics.reciprocity))}
+      ${metricLine("conectado", metrics.weakComponentCount === 1 ? "sim" : "nao")}
       ${metricLine("componentes fracas", formatNumber(metrics.weakComponentCount))}
       ${metricLine("maior componente", `${formatNumber(metrics.largestWeakComponent)} (${pct.format(metrics.largestWeakComponentShare)})`)}
       ${metricLine("negatividade", pct.format(metrics.negativeShare))}
@@ -1640,7 +1778,7 @@ async function runAnalysis() {
     state.edges = await loadEdges(state.layer);
   }
   state.lastAnalysis = computeAnalysis();
-  els.analysisTitle.textContent = `Camada ${state.layer} | ${roleFilterLabel()} | sinal ${state.sentiment} | peso >= ${state.minWeight} | ${timelineLabel()}`;
+  els.analysisTitle.textContent = `Camada ${state.layer} | ${componentScopeLabel()} | ${roleFilterLabel()} | sinal ${state.sentiment} | peso >= ${state.minWeight} | ${timelineLabel()}`;
   renderCheapMetrics(state.lastAnalysis);
   drawDistributions(state.lastAnalysis);
   drawAnalysisMap(state.lastAnalysis);
@@ -1669,6 +1807,7 @@ function exportAnalysisJson() {
       layer: analysis.layer,
       sentiment: analysis.sentiment,
       roleFilter: state.roleFilter,
+      componentScope: state.componentScope,
       minWeight: analysis.minWeight,
       timeline: timelineLabel(),
       timelineSource: state.timelineSource,
@@ -2494,6 +2633,21 @@ function attachEvents() {
     if (state.mode === "analysis") runAnalysis();
     draw();
   });
+  els.componentScopeSelect.addEventListener("change", async () => {
+    state.componentScope = els.componentScopeSelect.value;
+    if (!state.edges.length) {
+      state.edges = await loadEdges(state.layer);
+    } else {
+      cacheComponentScope(state.layer, state.edges);
+    }
+    clearHiddenSelection();
+    state.influenceComputedFor = "";
+    computeInfluenceMetrics();
+    invalidateProjectCompare();
+    updateStats();
+    if (state.mode === "analysis") runAnalysis();
+    fitToCurrentLayout();
+  });
   els.timelineInput.addEventListener("input", () => {
     state.timeWindowIndex = Number(els.timelineInput.value);
     state.influenceComputedFor = "";
@@ -2575,6 +2729,9 @@ async function init() {
   state.data = await response.json();
   await loadStructuralMetrics();
   state.nodes = state.data.nodes;
+  state.nodes.forEach((node, index) => {
+    node.index = index;
+  });
   state.communities = state.data.communities;
   state.nodeById = new Map(state.nodes.map((node) => [node.id, node]));
   prepareScatterLayout();
@@ -2590,7 +2747,7 @@ async function init() {
   }
   loading.hidden = true;
   loading.classList.add("is-hidden");
-  fitToGraph();
+  fitToCurrentLayout();
 }
 
 init().catch((error) => {
@@ -2608,6 +2765,7 @@ window.redditGraphApp = {
     influenceMode: state.influenceMode,
     sentiment: state.sentiment,
     roleFilter: state.roleFilter,
+    componentScope: state.componentScope,
     timeWindowIndex: state.timeWindowIndex,
     timelineSource: state.timelineSource,
     minWeight: state.minWeight,

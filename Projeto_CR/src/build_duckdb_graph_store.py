@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import random
 from pathlib import Path
 
 import igraph as ig
@@ -793,10 +794,12 @@ def compute_layer_structural_metrics(
     edges: pd.DataFrame,
     combined_membership: dict[str, int],
     sample_size: int,
+    scope: str = "full",
 ) -> dict[str, object]:
     if edges.empty:
         return {
             "layer": layer,
+            "scope": scope,
             "node_count": 0,
             "edge_count": 0,
             "total_weight": 0,
@@ -814,6 +817,14 @@ def compute_layer_structural_metrics(
             "modularity": 0.0,
             "community_count": 0,
             "path_metric_method": "empty",
+            "avg_degree_centrality": 0.0,
+            "avg_betweenness_centrality": 0.0,
+            "avg_closeness_centrality": 0.0,
+            "avg_eigenvector_centrality": 0.0,
+            "avg_pagerank_centrality": 0.0,
+            "avg_radiality": 0.0,
+            "avg_eccentricity": 0.0,
+            "centrality_method": "empty",
         }
 
     tuples = list(edges[["source", "target", "weight"]].itertuples(index=False, name=None))
@@ -849,17 +860,52 @@ def compute_layer_structural_metrics(
         edge_connectivity = 0
 
     clustering = finite_float(undirected.transitivity_avglocal_undirected(mode="zero"))
+
+    degree_values = undirected.degree()
+    degree_centrality = [
+        finite_float(value / (node_count - 1)) if node_count > 1 else 0.0
+        for value in degree_values
+    ]
+    pagerank = directed.pagerank(weights="weight")
+    try:
+        eigenvector = undirected.eigenvector_centrality(weights="weight", scale=True)
+    except Exception:
+        eigenvector = [0.0] * node_count
+    try:
+        local_clustering = undirected.transitivity_local_undirected(mode="zero")
+        betweenness = [
+            finite_float(degree_centrality[index] * (1 - local_clustering[index]))
+            for index in range(node_count)
+        ]
+    except Exception:
+        betweenness = degree_centrality
+
+    sources = centrality_sources(undirected, sample_size)
+    closeness, radiality, eccentricity = sampled_distance_profiles(
+        undirected,
+        sources=sources,
+        diameter=diameter,
+    )
+    centrality_method = (
+        f"degree_exact;pagerank_weighted;"
+        f"eigenvector_weighted;betweenness_proxy_degree_clustering;"
+        f"distance_{path_method}"
+    )
+
     if layer == "combined" and combined_membership:
         membership = [combined_membership.get(vertex["name"], -1) for vertex in undirected.vs]
         community_count = len(set(membership) - {-1})
         modularity = undirected.modularity(membership, weights=undirected.es["weight"])
     else:
+        random.seed(f"{layer}:{scope}:community_leiden")
+        ig.set_random_number_generator(random)
         communities = undirected.community_leiden(weights="weight", objective_function="modularity")
         community_count = len(set(communities.membership))
         modularity = undirected.modularity(communities.membership, weights=undirected.es["weight"])
 
     return {
         "layer": layer,
+        "scope": scope,
         "node_count": int(node_count),
         "edge_count": int(edge_count),
         "total_weight": total_weight,
@@ -877,7 +923,55 @@ def compute_layer_structural_metrics(
         "modularity": finite_float(modularity),
         "community_count": int(community_count),
         "path_metric_method": path_method,
+        "avg_degree_centrality": average_values(degree_centrality),
+        "avg_betweenness_centrality": average_values(betweenness),
+        "avg_closeness_centrality": average_values(closeness),
+        "avg_eigenvector_centrality": average_values(
+            [finite_float(value) for value in eigenvector]
+        ),
+        "avg_pagerank_centrality": average_values(
+            [finite_float(value) for value in pagerank]
+        ),
+        "avg_radiality": average_values(radiality),
+        "avg_eccentricity": average_values(eccentricity),
+        "centrality_method": centrality_method,
     }
+
+
+def average_values(values: list[float]) -> float:
+    return finite_float(sum(values) / len(values)) if values else 0.0
+
+
+def largest_component_edges(edges: pd.DataFrame) -> pd.DataFrame:
+    if edges.empty:
+        return edges
+
+    tuples = list(edges[["source", "target", "weight"]].itertuples(index=False, name=None))
+    directed = ig.Graph.TupleList(
+        tuples,
+        directed=True,
+        vertex_name_attr="name",
+        edge_attrs=["weight"],
+    )
+    undirected = directed.as_undirected(combine_edges={"weight": "sum"})
+    components = undirected.connected_components()
+    if not components:
+        return edges.iloc[0:0].copy()
+
+    component_sizes = components.sizes()
+    largest_component_id = max(
+        range(len(component_sizes)),
+        key=lambda component_id: component_sizes[component_id],
+    )
+    largest_nodes = {
+        vertex["name"]
+        for index, vertex in enumerate(undirected.vs)
+        if components.membership[index] == largest_component_id
+    }
+    return edges[
+        edges["source"].isin(largest_nodes)
+        & edges["target"].isin(largest_nodes)
+    ].copy()
 
 
 def create_structural_metrics_table(
@@ -904,6 +998,16 @@ def create_structural_metrics_table(
                 edges=edges,
                 combined_membership=combined_membership,
                 sample_size=sample_size,
+                scope="full",
+            )
+        )
+        rows.append(
+            compute_layer_structural_metrics(
+                layer=layer,
+                edges=largest_component_edges(edges),
+                combined_membership=combined_membership,
+                sample_size=sample_size,
+                scope="largest_component",
             )
         )
 
@@ -913,37 +1017,6 @@ def create_structural_metrics_table(
         "CREATE OR REPLACE TABLE graph_structural_metrics AS SELECT * FROM graph_structural_metrics_df"
     )
     con.unregister("graph_structural_metrics_df")
-    con.execute(
-        """
-        CREATE OR REPLACE TABLE graph_structural_metrics AS
-        WITH centrality_summary AS (
-          SELECT
-            layer,
-            AVG(degree_centrality) AS avg_degree_centrality,
-            AVG(betweenness_centrality) AS avg_betweenness_centrality,
-            AVG(closeness_centrality) AS avg_closeness_centrality,
-            AVG(eigenvector_centrality) AS avg_eigenvector_centrality,
-            AVG(pagerank_centrality) AS avg_pagerank_centrality,
-            AVG(radiality) AS avg_radiality,
-            AVG(eccentricity) AS avg_eccentricity,
-            MAX(centrality_method) AS centrality_method
-          FROM node_centrality_metrics
-          GROUP BY layer
-        )
-        SELECT
-          graph_structural_metrics.*,
-          COALESCE(centrality_summary.avg_degree_centrality, 0)::DOUBLE AS avg_degree_centrality,
-          COALESCE(centrality_summary.avg_betweenness_centrality, 0)::DOUBLE AS avg_betweenness_centrality,
-          COALESCE(centrality_summary.avg_closeness_centrality, 0)::DOUBLE AS avg_closeness_centrality,
-          COALESCE(centrality_summary.avg_eigenvector_centrality, 0)::DOUBLE AS avg_eigenvector_centrality,
-          COALESCE(centrality_summary.avg_pagerank_centrality, 0)::DOUBLE AS avg_pagerank_centrality,
-          COALESCE(centrality_summary.avg_radiality, 0)::DOUBLE AS avg_radiality,
-          COALESCE(centrality_summary.avg_eccentricity, 0)::DOUBLE AS avg_eccentricity,
-          COALESCE(centrality_summary.centrality_method, 'unavailable') AS centrality_method
-        FROM graph_structural_metrics
-        LEFT JOIN centrality_summary USING (layer)
-        """
-    )
     return metrics
 
 
@@ -981,6 +1054,7 @@ def write_summary(
         """
         SELECT
           layer,
+          scope,
           average_degree,
           density_directed,
           reciprocity,
@@ -999,7 +1073,7 @@ def write_summary(
           avg_eccentricity,
           path_metric_method
         FROM graph_structural_metrics
-        ORDER BY layer
+        ORDER BY layer, scope
         """
     ).fetchdf()
 
@@ -1043,14 +1117,14 @@ def write_summary(
             "",
             "## Metricas estruturais prontas",
             "",
-            "| camada | grau medio | densidade | reciprocidade | componentes | maior componente | coesao V | coesao E | clustering | caminho | diametro | modularidade | intermed. media | proxim. media | autovetor medio | radial. media | excentr. media | metodo |",
-            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+            "| camada | escopo | grau medio | densidade | reciprocidade | componentes | maior componente | coesao V | coesao E | clustering | caminho | diametro | modularidade | intermed. media | proxim. media | autovetor medio | radial. media | excentr. media | metodo |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
         ]
     )
     for row in structural_metrics.itertuples(index=False):
         lines.append(
             "| "
-            f"{row.layer} | {row.average_degree:.3f} | {row.density_directed:.6f} | "
+            f"{row.layer} | {row.scope} | {row.average_degree:.3f} | {row.density_directed:.6f} | "
             f"{row.reciprocity:.3f} | {int(row.weak_component_count)} | "
             f"{row.largest_weak_component_share:.3f} | {int(row.vertex_connectivity)} | "
             f"{int(row.edge_connectivity)} | {row.avg_clustering:.3f} | "

@@ -304,7 +304,7 @@ def export_assets(db_path: Path, public_dir: Path) -> dict:
     structural_metrics_asset = None
     if table_exists(con, "graph_structural_metrics"):
         structural_metrics = (
-            con.execute("SELECT * FROM graph_structural_metrics ORDER BY layer")
+            con.execute("SELECT * FROM graph_structural_metrics ORDER BY layer, scope")
             .fetchdf()
             .to_dict(orient="records")
         )

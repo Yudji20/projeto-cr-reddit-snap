@@ -248,61 +248,6 @@ select {
   text-align: right;
 }
 
-.formula-panel {
-  display: grid;
-  gap: 14px;
-  overflow: auto;
-  color: var(--ink);
-}
-
-.formula-panel > p {
-  margin: 0;
-  max-width: 980px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.formula-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
-  gap: 10px;
-}
-
-.formula-item {
-  display: grid;
-  gap: 7px;
-  min-height: 150px;
-  padding: 12px;
-  border: 1px solid #edf1f7;
-  border-radius: 8px;
-  background: #fbfcff;
-}
-
-.formula-item h4 {
-  margin: 0;
-  font-size: 13px;
-}
-
-.formula-item code {
-  display: block;
-  width: 100%;
-  padding: 7px 8px;
-  border-radius: 6px;
-  background: #eef3fb;
-  color: #172033;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 12px;
-  white-space: normal;
-}
-
-.formula-item p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
 .compare-layout {
   display: grid;
   grid-template-columns: minmax(300px, 0.86fr) minmax(0, 1.14fr);
@@ -956,8 +901,7 @@ button + button {
 
   .metric-tiles,
   .structural-tiles,
-  .metric-rankings,
-  .formula-grid {
+  .metric-rankings {
     grid-template-columns: 1fr;
   }
 

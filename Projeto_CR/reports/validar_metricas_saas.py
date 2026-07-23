@@ -31,6 +31,7 @@ NUMERIC_FIELDS = [
     "largest_weak_component_share",
     "vertex_connectivity",
     "edge_connectivity",
+    "articulation_point_count",
     "avg_clustering",
     "avg_shortest_path",
     "diameter",
@@ -66,6 +67,7 @@ def fetch_edges(layer: str) -> list[tuple[str, str, int]]:
             SELECT source, target, weight
             FROM edges_by_layer
             WHERE layer = ?
+            ORDER BY source, target
             """,
             [layer],
         ).fetchall()
@@ -241,6 +243,10 @@ def calculate_metrics(
     else:
         vertex_connectivity = 0
         edge_connectivity = 0
+    try:
+        articulation_point_count = len(undirected.articulation_points())
+    except Exception:
+        articulation_point_count = 0
 
     degree_values = undirected.degree()
     degree_centrality = [
@@ -299,6 +305,7 @@ def calculate_metrics(
         "largest_weak_component_share": finite_float(largest_component_nodes / node_count if node_count else 0.0),
         "vertex_connectivity": int(vertex_connectivity),
         "edge_connectivity": int(edge_connectivity),
+        "articulation_point_count": int(articulation_point_count),
         "avg_clustering": clustering,
         "avg_shortest_path": avg_path,
         "diameter": int(diameter),
@@ -344,6 +351,7 @@ def metric_label(field: str) -> str:
         "largest_weak_component_share": "Participacao da maior componente",
         "vertex_connectivity": "Conectividade de vertices",
         "edge_connectivity": "Conectividade de arestas",
+        "articulation_point_count": "Pontos de articulacao",
         "avg_clustering": "Clustering medio",
         "avg_shortest_path": "Caminho medio",
         "diameter": "Diametro",
@@ -390,6 +398,7 @@ def write_report(expected: list[dict[str, object]], calculated: dict[str, dict[s
         "| Componentes fracas | Componentes conexas ignorando a direcao. |",
         "| Conectividade de vertices | `vertex_connectivity(G)` no grafo nao dirigido do escopo. |",
         "| Conectividade de arestas | `edge_connectivity(G)` no grafo nao dirigido do escopo. |",
+        "| Pontos de articulacao | Vertices cuja remocao aumenta o numero de componentes conexas do escopo. |",
         "| Caminho medio e diametro | Exatos ate 2.500 vertices; acima disso usam amostra deterministica de 64 fontes (`sampled_64`). |",
         "| Centralidades medias | Media aritmetica das centralidades dos vertices do escopo. |",
         "",

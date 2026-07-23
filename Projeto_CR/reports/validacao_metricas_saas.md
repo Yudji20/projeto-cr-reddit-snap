@@ -20,6 +20,7 @@ No escopo `largest_component`, o grafo e segmentado antes do calculo; portanto `
 | Componentes fracas | Componentes conexas ignorando a direcao. |
 | Conectividade de vertices | `vertex_connectivity(G)` no grafo nao dirigido do escopo. |
 | Conectividade de arestas | `edge_connectivity(G)` no grafo nao dirigido do escopo. |
+| Pontos de articulacao | Vertices cuja remocao aumenta o numero de componentes conexas do escopo. |
 | Caminho medio e diametro | Exatos ate 2.500 vertices; acima disso usam amostra deterministica de 64 fontes (`sampled_64`). |
 | Centralidades medias | Media aritmetica das centralidades dos vertices do escopo. |
 
@@ -38,22 +39,23 @@ No escopo `largest_component`, o grafo e segmentado antes do calculo; portanto `
 | Participacao da maior componente | 0.976980142115 | 0.976980142115 | OK |
 | Conectividade de vertices | 0 | 0 | OK |
 | Conectividade de arestas | 0 | 0 | OK |
+| Pontos de articulacao | 7125 | 7125 | OK |
 | Clustering medio | 0.211414673654 | 0.211414673654 | OK |
-| Caminho medio | 3.05499523189 | 3.05499523189 | OK |
+| Caminho medio | 3.07256415272 | 3.07256415272 | OK |
 | Diametro | 13 | 13 | OK |
 | Modularidade | 0.555827586212 | 0.555827586212 | OK |
 | Comunidades | 701 | 701 | OK |
 | Centralidade de grau media | 0.000150794710794 | 0.000150794710794 | OK |
 | Centralidade de intermediacao media | 0.000120598183405 | 0.000120598183405 | OK |
-| Centralidade de proximidade media | 0.331052422948 | 0.331052422948 | OK |
+| Centralidade de proximidade media | 0.328616539821 | 0.328616539821 | OK |
 | Centralidade de autovetor media | 0.000951674095954 | 0.000951674095954 | OK |
 | PageRank medio | 1.7373477649e-05 | 1.7373477649e-05 | OK |
-| Radialidade media | 0.824943944839 | 0.824943944839 | OK |
-| Excentricidade media | 4.95058982957 | 4.95058982957 | OK |
+| Radialidade media | 0.823291489542 | 0.823291489542 | OK |
+| Excentricidade media | 5.01386403516 | 5.01386403516 | OK |
 | Metodo de caminhos | sampled_64 | sampled_64 | OK |
 | Metodo de centralidade | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | OK |
 
-Tempo de recalc.: 17.238 s.
+Tempo de recalc.: 11.141 s.
 
 ## Camada combined / largest_component
 
@@ -70,22 +72,23 @@ Tempo de recalc.: 17.238 s.
 | Participacao da maior componente | 1 | 1 | OK |
 | Conectividade de vertices | 1 | 1 | OK |
 | Conectividade de arestas | 1 | 1 | OK |
+| Pontos de articulacao | 7056 | 7056 | OK |
 | Clustering medio | 0.216263894931 | 0.216263894931 | OK |
-| Caminho medio | 3.05499523189 | 3.05499523189 | OK |
+| Caminho medio | 3.07256415272 | 3.07256415272 | OK |
 | Diametro | 13 | 13 | OK |
 | Modularidade | 0.555156281887 | 0.555156281887 | OK |
 | Comunidades | 83 | 83 | OK |
 | Centralidade de grau media | 0.000157533670408 | 0.000157533670408 | OK |
 | Centralidade de intermediacao media | 0.000125903008362 | 0.000125903008362 | OK |
-| Centralidade de proximidade media | 0.335153808646 | 0.335153808646 | OK |
+| Centralidade de proximidade media | 0.333160021791 | 0.333160021791 | OK |
 | Centralidade de autovetor media | 0.000974097686258 | 0.000974097686258 | OK |
 | PageRank medio | 1.77828360067e-05 | 1.77828360067e-05 | OK |
-| Radialidade media | 0.841924335197 | 0.841924335197 | OK |
-| Excentricidade media | 4.98115019383 | 4.98115019383 | OK |
+| Radialidade media | 0.840572868498 | 0.840572868498 | OK |
+| Excentricidade media | 5.06247110289 | 5.06247110289 | OK |
 | Metodo de caminhos | sampled_64 | sampled_64 | OK |
 | Metodo de centralidade | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | OK |
 
-Tempo de recalc.: 18.885 s.
+Tempo de recalc.: 19.35 s.
 
 ## Camada title / full
 
@@ -102,22 +105,23 @@ Tempo de recalc.: 18.885 s.
 | Participacao da maior componente | 0.969387755102 | 0.969387755102 | OK |
 | Conectividade de vertices | 0 | 0 | OK |
 | Conectividade de arestas | 0 | 0 | OK |
+| Pontos de articulacao | 5642 | 5642 | OK |
 | Clustering medio | 0.177563522538 | 0.177563522538 | OK |
-| Caminho medio | 3.13707692211 | 3.13707692211 | OK |
-| Diametro | 13 | 13 | OK |
-| Modularidade | 0.501957432672 | 0.501957432672 | OK |
-| Comunidades | 666 | 666 | OK |
+| Caminho medio | 3.07085413571 | 3.07085413571 | OK |
+| Diametro | 12 | 12 | OK |
+| Modularidade | 0.501267951164 | 0.501267951164 | OK |
+| Comunidades | 662 | 662 | OK |
 | Centralidade de grau media | 0.000183410293102 | 0.000183410293102 | OK |
 | Centralidade de intermediacao media | 0.000150003454429 | 0.000150003454429 | OK |
-| Centralidade de proximidade media | 0.324120352091 | 0.324120352091 | OK |
+| Centralidade de proximidade media | 0.332632203503 | 0.332632203503 | OK |
 | Centralidade de autovetor media | 0.00123182172935 | 0.00123182172935 | OK |
 | PageRank medio | 2.4411678547e-05 | 2.4411678547e-05 | OK |
-| Radialidade media | 0.815106266866 | 0.815106266866 | OK |
-| Excentricidade media | 4.56286007226 | 4.56286007226 | OK |
+| Radialidade media | 0.808309980979 | 0.808309980979 | OK |
+| Excentricidade media | 4.03725222146 | 4.03725222146 | OK |
 | Metodo de caminhos | sampled_64 | sampled_64 | OK |
 | Metodo de centralidade | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | OK |
 
-Tempo de recalc.: 5.053 s.
+Tempo de recalc.: 4.482 s.
 
 ## Camada title / largest_component
 
@@ -134,22 +138,23 @@ Tempo de recalc.: 5.053 s.
 | Participacao da maior componente | 1 | 1 | OK |
 | Conectividade de vertices | 1 | 1 | OK |
 | Conectividade de arestas | 1 | 1 | OK |
+| Pontos de articulacao | 5589 | 5589 | OK |
 | Clustering medio | 0.182994513655 | 0.182994513655 | OK |
-| Caminho medio | 3.13707692211 | 3.13707692211 | OK |
-| Diametro | 13 | 13 | OK |
-| Modularidade | 0.500412112118 | 0.500412112118 | OK |
-| Comunidades | 70 | 70 | OK |
+| Caminho medio | 3.07085413571 | 3.07085413571 | OK |
+| Diametro | 12 | 12 | OK |
+| Modularidade | 0.500612896139 | 0.500612896139 | OK |
+| Comunidades | 73 | 73 | OK |
 | Centralidade de grau media | 0.000194334965418 | 0.000194334965418 | OK |
 | Centralidade de intermediacao media | 0.000158796294643 | 0.000158796294643 | OK |
-| Centralidade de proximidade media | 0.326758202281 | 0.326758202281 | OK |
+| Centralidade de proximidade media | 0.33416916668 | 0.33416916668 | OK |
 | Centralidade de autovetor media | 0.00127072136291 | 0.00127072136291 | OK |
 | PageRank medio | 2.5182573659e-05 | 2.5182573659e-05 | OK |
-| Radialidade media | 0.835610634364 | 0.835610634364 | OK |
-| Excentricidade media | 5.04051876102 | 5.04051876102 | OK |
+| Radialidade media | 0.827430207359 | 0.827430207359 | OK |
+| Excentricidade media | 4.41659531604 | 4.41659531604 | OK |
 | Metodo de caminhos | sampled_64 | sampled_64 | OK |
 | Metodo de centralidade | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | OK |
 
-Tempo de recalc.: 11.227 s.
+Tempo de recalc.: 10.167 s.
 
 ## Camada body / full
 
@@ -166,22 +171,23 @@ Tempo de recalc.: 11.227 s.
 | Participacao da maior componente | 0.969113372093 | 0.969113372093 | OK |
 | Conectividade de vertices | 0 | 0 | OK |
 | Conectividade de arestas | 0 | 0 | OK |
+| Pontos de articulacao | 5055 | 5055 | OK |
 | Clustering medio | 0.180901018438 | 0.180901018438 | OK |
-| Caminho medio | 3.21179198515 | 3.21179198515 | OK |
-| Diametro | 8 | 8 | OK |
-| Modularidade | 0.659843029599 | 0.659843029599 | OK |
-| Comunidades | 575 | 575 | OK |
+| Caminho medio | 3.21402103764 | 3.21402103764 | OK |
+| Diametro | 9 | 9 | OK |
+| Modularidade | 0.659892735844 | 0.659892735844 | OK |
+| Comunidades | 572 | 572 | OK |
 | Centralidade de grau media | 0.000194282867604 | 0.000194282867604 | OK |
 | Centralidade de intermediacao media | 0.000160545402348 | 0.000160545402348 | OK |
-| Centralidade de proximidade media | 0.312633728683 | 0.312633728683 | OK |
+| Centralidade de proximidade media | 0.297414280285 | 0.297414280285 | OK |
 | Centralidade de autovetor media | 0.00114782508329 | 0.00114782508329 | OK |
 | PageRank medio | 2.79516994633e-05 | 2.79516994633e-05 | OK |
-| Radialidade media | 0.705176528743 | 0.705176528743 | OK |
-| Excentricidade media | 4.71942084079 | 4.71942084079 | OK |
+| Radialidade media | 0.717835766524 | 0.717835766524 | OK |
+| Excentricidade media | 5.40275603757 | 5.40275603757 | OK |
 | Metodo de caminhos | sampled_64 | sampled_64 | OK |
 | Metodo de centralidade | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | OK |
 
-Tempo de recalc.: 4.057 s.
+Tempo de recalc.: 4.807 s.
 
 ## Camada body / largest_component
 
@@ -198,19 +204,20 @@ Tempo de recalc.: 4.057 s.
 | Participacao da maior componente | 1 | 1 | OK |
 | Conectividade de vertices | 1 | 1 | OK |
 | Conectividade de arestas | 1 | 1 | OK |
+| Pontos de articulacao | 5006 | 5006 | OK |
 | Clustering medio | 0.186170425879 | 0.186170425879 | OK |
-| Caminho medio | 3.21179198515 | 3.21179198515 | OK |
-| Diametro | 8 | 8 | OK |
-| Modularidade | 0.658040142814 | 0.658040142814 | OK |
-| Comunidades | 81 | 81 | OK |
+| Caminho medio | 3.21402103764 | 3.21402103764 | OK |
+| Diametro | 9 | 9 | OK |
+| Modularidade | 0.658544806154 | 0.658544806154 | OK |
+| Comunidades | 76 | 76 | OK |
 | Centralidade de grau media | 0.000205599868564 | 0.000205599868564 | OK |
 | Centralidade de intermediacao media | 0.000169709497619 | 0.000169709497619 | OK |
-| Centralidade de proximidade media | 0.319058730447 | 0.319058730447 | OK |
+| Centralidade de proximidade media | 0.318956957151 | 0.318956957151 | OK |
 | Centralidade de autovetor media | 0.00118440743503 | 0.00118440743503 | OK |
 | PageRank medio | 2.88425485276e-05 | 2.88425485276e-05 | OK |
-| Radialidade media | 0.723528551998 | 0.723528551998 | OK |
-| Excentricidade media | 4.86813186813 | 4.86813186813 | OK |
+| Radialidade media | 0.7539999857 | 0.7539999857 | OK |
+| Excentricidade media | 4.97060944305 | 4.97060944305 | OK |
 | Metodo de caminhos | sampled_64 | sampled_64 | OK |
 | Metodo de centralidade | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | degree_exact;pagerank_weighted;eigenvector_weighted;betweenness_proxy_degree_clustering;distance_sampled_64 | OK |
 
-Tempo de recalc.: 8.029 s.
+Tempo de recalc.: 7.568 s.

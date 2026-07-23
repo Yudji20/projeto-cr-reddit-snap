@@ -312,6 +312,22 @@ def export_assets(db_path: Path, public_dir: Path) -> dict:
         structural_metrics_asset = structural_metrics_path.name
         write_json_asset(structural_metrics_path, structural_metrics)
 
+    articulation_points_asset = None
+    articulation_points_by_layer: dict[str, dict[str, list[str]]] = {}
+    if table_exists(con, "graph_articulation_points"):
+        articulation_rows = con.execute(
+            """
+            SELECT layer, scope, node
+            FROM graph_articulation_points
+            ORDER BY layer, scope, node
+            """
+        ).fetchall()
+        for layer, scope, node in articulation_rows:
+            articulation_points_by_layer.setdefault(layer, {}).setdefault(scope, []).append(node)
+        articulation_points_path = public_dir / "graph-articulation-points.json"
+        articulation_points_asset = articulation_points_path.name
+        write_json_asset(articulation_points_path, articulation_points_by_layer, compact=True)
+
     node_profile_paths = {}
     if table_exists(con, "node_layer_metrics") and table_exists(con, "node_top_connections"):
         metric_rows = con.execute(
@@ -516,6 +532,7 @@ def export_assets(db_path: Path, public_dir: Path) -> dict:
             "structuralMetrics": structural_metrics,
             "analysisFiles": {
                 "structuralMetrics": structural_metrics_asset,
+                "articulationPoints": articulation_points_asset,
                 "nodeProfiles": node_profile_paths,
             },
         },
@@ -529,6 +546,7 @@ def export_assets(db_path: Path, public_dir: Path) -> dict:
         "communities": len(communities),
         "analysisFiles": {
             "structuralMetrics": structural_metrics_asset,
+            "articulationPoints": articulation_points_asset,
             "nodeProfiles": node_profile_paths,
         },
     }

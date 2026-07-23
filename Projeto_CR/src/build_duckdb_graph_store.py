@@ -235,7 +235,7 @@ def compute_graph_metrics(
     skip_layout: bool,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     edges = con.execute(
-        "SELECT source, target, weight, positive, negative FROM edges_combined"
+        "SELECT source, target, weight, positive, negative FROM edges_combined ORDER BY source, target"
     ).fetchdf()
     nodes = con.execute("SELECT * FROM node_strengths").fetchdf()
 
@@ -720,6 +720,7 @@ def create_node_centrality_metrics(
             SELECT source, target, weight
             FROM edges_by_layer
             WHERE layer = ?
+            ORDER BY source, target
             """,
             [layer],
         ).fetchdf()
@@ -811,6 +812,7 @@ def compute_layer_structural_metrics(
             "largest_weak_component_share": 0.0,
             "vertex_connectivity": 0,
             "edge_connectivity": 0,
+            "articulation_point_count": 0,
             "avg_clustering": 0.0,
             "avg_shortest_path": 0.0,
             "diameter": 0,
@@ -858,6 +860,10 @@ def compute_layer_structural_metrics(
     else:
         vertex_connectivity = 0
         edge_connectivity = 0
+    try:
+        articulation_point_count = len(undirected.articulation_points())
+    except Exception:
+        articulation_point_count = 0
 
     clustering = finite_float(undirected.transitivity_avglocal_undirected(mode="zero"))
 
@@ -917,6 +923,7 @@ def compute_layer_structural_metrics(
         "largest_weak_component_share": finite_float(largest_component_nodes / node_count if node_count else 0),
         "vertex_connectivity": vertex_connectivity,
         "edge_connectivity": edge_connectivity,
+        "articulation_point_count": int(articulation_point_count),
         "avg_clustering": clustering,
         "avg_shortest_path": avg_path,
         "diameter": int(diameter),
@@ -974,6 +981,34 @@ def largest_component_edges(edges: pd.DataFrame) -> pd.DataFrame:
     ].copy()
 
 
+def compute_articulation_points(layer: str, edges: pd.DataFrame, scope: str) -> list[dict[str, object]]:
+    if edges.empty:
+        return []
+
+    tuples = list(edges[["source", "target", "weight"]].itertuples(index=False, name=None))
+    directed = ig.Graph.TupleList(
+        tuples,
+        directed=True,
+        vertex_name_attr="name",
+        edge_attrs=["weight"],
+    )
+    undirected = directed.as_undirected(combine_edges={"weight": "sum"})
+    try:
+        articulation_indices = undirected.articulation_points()
+    except Exception:
+        articulation_indices = []
+
+    names = sorted(undirected.vs[index]["name"] for index in articulation_indices)
+    return [
+        {
+            "layer": layer,
+            "scope": scope,
+            "node": name,
+        }
+        for name in names
+    ]
+
+
 def create_structural_metrics_table(
     con: duckdb.DuckDBPyConnection,
     sample_size: int = DEFAULT_PATH_SAMPLE_SIZE,
@@ -989,6 +1024,7 @@ def create_structural_metrics_table(
             SELECT source, target, weight
             FROM edges_by_layer
             WHERE layer = ?
+            ORDER BY source, target
             """,
             [layer],
         ).fetchdf()
@@ -1020,6 +1056,37 @@ def create_structural_metrics_table(
     return metrics
 
 
+def create_articulation_points_table(con: duckdb.DuckDBPyConnection) -> pd.DataFrame:
+    create_edges_by_layer(con)
+    rows = []
+    for layer in ("combined", "title", "body"):
+        edges = con.execute(
+            """
+            SELECT source, target, weight
+            FROM edges_by_layer
+            WHERE layer = ?
+            ORDER BY source, target
+            """,
+            [layer],
+        ).fetchdf()
+        rows.extend(compute_articulation_points(layer, edges, "full"))
+        rows.extend(
+            compute_articulation_points(
+                layer,
+                largest_component_edges(edges),
+                "largest_component",
+            )
+        )
+
+    articulation_points = pd.DataFrame(rows, columns=["layer", "scope", "node"])
+    con.register("graph_articulation_points_df", articulation_points)
+    con.execute(
+        "CREATE OR REPLACE TABLE graph_articulation_points AS SELECT * FROM graph_articulation_points_df"
+    )
+    con.unregister("graph_articulation_points_df")
+    return articulation_points
+
+
 def create_analysis_tables(
     con: duckdb.DuckDBPyConnection,
     sample_size: int = DEFAULT_PATH_SAMPLE_SIZE,
@@ -1032,7 +1099,9 @@ def create_analysis_tables(
         sample_size=sample_size,
         centrality_cutoff=centrality_cutoff,
     )
-    return create_structural_metrics_table(con, sample_size=sample_size)
+    metrics = create_structural_metrics_table(con, sample_size=sample_size)
+    create_articulation_points_table(con)
+    return metrics
 
 
 def write_summary(
@@ -1062,6 +1131,7 @@ def write_summary(
           largest_weak_component_share,
           vertex_connectivity,
           edge_connectivity,
+          articulation_point_count,
           avg_clustering,
           avg_shortest_path,
           diameter,
@@ -1117,8 +1187,8 @@ def write_summary(
             "",
             "## Metricas estruturais prontas",
             "",
-            "| camada | escopo | grau medio | densidade | reciprocidade | componentes | maior componente | coesao V | coesao E | clustering | caminho | diametro | modularidade | intermed. media | proxim. media | autovetor medio | radial. media | excentr. media | metodo |",
-            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+            "| camada | escopo | grau medio | densidade | reciprocidade | componentes | maior componente | coesao V | coesao E | articulacoes | clustering | caminho | diametro | modularidade | intermed. media | proxim. media | autovetor medio | radial. media | excentr. media | metodo |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
         ]
     )
     for row in structural_metrics.itertuples(index=False):
@@ -1127,7 +1197,7 @@ def write_summary(
             f"{row.layer} | {row.scope} | {row.average_degree:.3f} | {row.density_directed:.6f} | "
             f"{row.reciprocity:.3f} | {int(row.weak_component_count)} | "
             f"{row.largest_weak_component_share:.3f} | {int(row.vertex_connectivity)} | "
-            f"{int(row.edge_connectivity)} | {row.avg_clustering:.3f} | "
+            f"{int(row.edge_connectivity)} | {int(row.articulation_point_count)} | {row.avg_clustering:.3f} | "
             f"{row.avg_shortest_path:.3f} | {int(row.diameter)} | {row.modularity:.3f} | "
             f"{row.avg_betweenness_centrality:.6f} | {row.avg_closeness_centrality:.3f} | "
             f"{row.avg_eigenvector_centrality:.3f} | {row.avg_radiality:.3f} | "
@@ -1144,7 +1214,8 @@ def write_summary(
             "- `node_layer_metrics` guarda perfil numerico por subreddit e camada.",
             "- `node_top_connections` guarda as principais conexoes de entrada e saida por subreddit.",
             "- `node_centrality_metrics` guarda centralidades por subreddit e camada.",
-            "- `graph_structural_metrics` guarda ordem, tamanho, coesoes, densidade, centralidades medias, componentes, clustering, caminho medio, diametro e modularidade.",
+            "- `graph_structural_metrics` guarda ordem, tamanho, coesoes, densidade, centralidades medias, componentes, pontos de articulacao, clustering, caminho medio, diametro e modularidade.",
+            "- `graph_articulation_points` guarda os vertices cuja remocao aumenta o numero de componentes no escopo analisado.",
             "- `communities` guarda os agrupamentos para rotulos e contornos no mapa.",
             "- `graph_stats` guarda resumo para os cards do painel.",
             "",

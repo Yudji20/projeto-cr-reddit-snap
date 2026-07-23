@@ -2,7 +2,7 @@ const canvas = document.getElementById("graphCanvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 const tooltip = document.getElementById("tooltip");
 const loading = document.getElementById("loading");
-const ASSET_VERSION = "20260723-scoped-metrics-1";
+const ASSET_VERSION = "20260723-filtered-articulation-1";
 
 const els = {
   analysisWorkspace: document.getElementById("analysisWorkspace"),
@@ -11,12 +11,8 @@ const els = {
   cheapMetricsMeta: document.getElementById("cheapMetricsMeta"),
   distributionCanvas: document.getElementById("distributionCanvas"),
   distributionMeta: document.getElementById("distributionMeta"),
-  analysisMapCanvas: document.getElementById("analysisMapCanvas"),
-  analysisMapMeta: document.getElementById("analysisMapMeta"),
   egoCanvas: document.getElementById("egoCanvas"),
   egoMeta: document.getElementById("egoMeta"),
-  topEdgesCanvas: document.getElementById("topEdgesCanvas"),
-  topEdgesMeta: document.getElementById("topEdgesMeta"),
   exportJsonButton: document.getElementById("exportJsonButton"),
   exportCsvButton: document.getElementById("exportCsvButton"),
   compareWorkspace: document.getElementById("compareWorkspace"),
@@ -52,6 +48,7 @@ const els = {
   sentimentSelect: document.getElementById("sentimentSelect"),
   roleSelect: document.getElementById("roleSelect"),
   componentScopeSelect: document.getElementById("componentScopeSelect"),
+  articulationToggle: document.getElementById("articulationToggle"),
   timelineInput: document.getElementById("timelineInput"),
   timelineOutput: document.getElementById("timelineOutput"),
   timelineMeta: document.getElementById("timelineMeta"),
@@ -60,8 +57,6 @@ const els = {
   edgesToggle: document.getElementById("edgesToggle"),
   labelsToggle: document.getElementById("labelsToggle"),
   searchInput: document.getElementById("searchInput"),
-  topEdgesInput: document.getElementById("topEdgesInput"),
-  topEdgesOutput: document.getElementById("topEdgesOutput"),
   searchButton: document.getElementById("searchButton"),
   fitButton: document.getElementById("fitButton"),
   runAnalysisButton: document.getElementById("runAnalysisButton"),
@@ -85,6 +80,7 @@ const state = {
   roleFilter: "all",
   componentScope: "full",
   componentScopeCache: new Map(),
+  showArticulationPoints: false,
   timeWindowIndex: 4,
   timeWindowCount: 5,
   timeYears: [],
@@ -100,6 +96,9 @@ const state = {
   topEdgesLimit: 250,
   lastAnalysis: null,
   structuralMetrics: new Map(),
+  articulationPoints: new Map(),
+  filteredArticulationPoints: new Set(),
+  filteredArticulationSignature: "",
   nodeProfileCache: new Map(),
   selectedProfileRequest: 0,
   compareDatasets: {
@@ -170,6 +169,21 @@ function currentStructuralMetrics() {
   return state.structuralMetrics.get(`${state.layer}:${scope}`)
     || state.structuralMetrics.get(`${state.layer}:full`)
     || null;
+}
+
+function currentArticulationScope() {
+  return state.componentScope === "largest" ? "largest_component" : "full";
+}
+
+function currentArticulationSet() {
+  return state.articulationPoints.get(`${state.layer}:${currentArticulationScope()}`)
+    || new Set();
+}
+
+function nodeIsArticulationPoint(node) {
+  if (!node) return false;
+  if (state.edges.length) return currentFilteredArticulationPoints().has(node.index);
+  return currentArticulationSet().has(node.id);
 }
 
 const compareSlots = [
@@ -507,6 +521,101 @@ function edgeVisible(edge) {
   return true;
 }
 
+function computeArticulationPointsFromAdjacency(adjacency) {
+  const discovery = new Map();
+  const low = new Map();
+  const parentByNode = new Map();
+  const childCount = new Map();
+  const articulation = new Set();
+  let time = 0;
+
+  for (const start of adjacency.keys()) {
+    if (discovery.has(start)) continue;
+    discovery.set(start, ++time);
+    low.set(start, time);
+    parentByNode.set(start, -1);
+    childCount.set(start, 0);
+
+    const stack = [{
+      node: start,
+      parent: -1,
+      neighbors: [...(adjacency.get(start) || [])],
+      nextIndex: 0,
+    }];
+
+    while (stack.length) {
+      const frame = stack[stack.length - 1];
+      if (frame.nextIndex < frame.neighbors.length) {
+        const next = frame.neighbors[frame.nextIndex];
+        frame.nextIndex += 1;
+        if (next === frame.parent) continue;
+
+        if (!discovery.has(next)) {
+          childCount.set(frame.node, (childCount.get(frame.node) || 0) + 1);
+          discovery.set(next, ++time);
+          low.set(next, time);
+          parentByNode.set(next, frame.node);
+          childCount.set(next, 0);
+          stack.push({
+            node: next,
+            parent: frame.node,
+            neighbors: [...(adjacency.get(next) || [])],
+            nextIndex: 0,
+          });
+        } else {
+          low.set(frame.node, Math.min(low.get(frame.node), discovery.get(next)));
+        }
+        continue;
+      }
+
+      stack.pop();
+      if (frame.parent === -1) {
+        if ((childCount.get(frame.node) || 0) > 1) articulation.add(frame.node);
+        continue;
+      }
+
+      low.set(frame.parent, Math.min(low.get(frame.parent), low.get(frame.node)));
+      if (parentByNode.get(frame.parent) !== -1 && low.get(frame.node) >= discovery.get(frame.parent)) {
+        articulation.add(frame.parent);
+      }
+    }
+  }
+
+  return articulation;
+}
+
+function filteredArticulationSignature() {
+  return [
+    state.layer,
+    state.componentScope,
+    state.roleFilter,
+    state.sentiment,
+    state.timeWindowIndex,
+    state.minWeight,
+    state.edges.length,
+  ].join(":");
+}
+
+function currentFilteredArticulationPoints() {
+  const signature = filteredArticulationSignature();
+  if (state.filteredArticulationSignature === signature) {
+    return state.filteredArticulationPoints;
+  }
+
+  const adjacency = new Map();
+  for (const edge of state.edges) {
+    if (!edgeVisible(edge)) continue;
+    if (!adjacency.has(edge.s)) adjacency.set(edge.s, new Set());
+    if (!adjacency.has(edge.t)) adjacency.set(edge.t, new Set());
+    adjacency.get(edge.s).add(edge.t);
+    adjacency.get(edge.t).add(edge.s);
+  }
+
+  state.filteredArticulationPoints = computeArticulationPointsFromAdjacency(adjacency);
+  state.filteredArticulationSignature = signature;
+  return state.filteredArticulationPoints;
+}
+
 function prepareScatterLayout() {
   const bounds = state.data?.meta.bounds || { minX: -210, maxX: 210, minY: -210, maxY: 210 };
   const spread = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 420);
@@ -758,6 +867,40 @@ function drawNodes() {
   ctx.restore();
 }
 
+function drawArticulationHighlights() {
+  if (!state.showArticulationPoints) return;
+  const articulationSet = currentFilteredArticulationPoints();
+  if (!articulationSet.size) return;
+
+  ctx.save();
+  for (const node of state.nodes) {
+    if (!articulationSet.has(node.index)) continue;
+    if (!nodeVisibleByRole(node)) continue;
+    if (state.layoutMode === "communities" && state.selectedCommunity !== null && node.community !== state.selectedCommunity) {
+      ctx.globalAlpha = 0.34;
+    } else {
+      ctx.globalAlpha = 0.96;
+    }
+    const p = worldToScreen(getNodeX(node), getNodeY(node));
+    if (p.x < -24 || p.x > state.width + 24 || p.y < -24 || p.y > state.height + 24) continue;
+    const radius = nodeVisualRadius(node);
+    const ringRadius = Math.max(radius + 4, 6.5);
+
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(255,255,255,0.92)";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, ringRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, ringRadius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawFocusLinks() {
   if (!state.selectedNode || !nodeVisibleByRole(state.selectedNode)) return;
   const selectedIndex = state.nodes.indexOf(state.selectedNode);
@@ -800,6 +943,7 @@ function draw() {
   drawEdges();
   drawFocusLinks();
   drawNodes();
+  drawArticulationHighlights();
 }
 
 function nearestNode(screenX, screenY) {
@@ -863,6 +1007,7 @@ function selectionGraphMetrics() {
       <div class="metric-line"><span>numero de componentes conexas</span><strong>${formatNumber(metrics.weak_component_count)}</strong></div>
       <div class="metric-line"><span>conectividade de vertice</span><strong>${formatNumber(metrics.vertex_connectivity)}</strong></div>
       <div class="metric-line"><span>conectividade de aresta</span><strong>${formatNumber(metrics.edge_connectivity)}</strong></div>
+      <div class="metric-line"><span>vertices de articulacao no banco</span><strong>${formatNumber(metrics.articulation_point_count)}</strong></div>
       <div class="metric-line"><span>grau medio</span><strong>${formatDecimal(metrics.average_degree, 3)}</strong></div>
       <div class="metric-line"><span>densidade</span><strong>${formatDecimal(metrics.density_directed, 5)}</strong></div>
     </section>
@@ -890,6 +1035,7 @@ function nodeCentralityDetails(profile) {
 
 function nodeDetails(node, profile = null, profileState = "idle") {
   const source = profile || node;
+  const articulationStatus = nodeIsArticulationPoint(node) ? "sim" : "nao";
   const influenceDetails = state.influenceComputedFor
     ? `
     <div class="metric-line"><span>popularidade filtrada</span><strong>${formatNumber(node.popularityScore)}</strong></div>
@@ -918,6 +1064,7 @@ function nodeDetails(node, profile = null, profileState = "idle") {
   return `
     <strong>${escapeHtml(node.id)}</strong>
     <div class="selection-layer">camada ${escapeHtml(state.layer)}</div>
+    <div class="metric-line"><span>ponto de articulacao</span><strong>${articulationStatus}</strong></div>
     <div class="metric-line"><span>comunidade</span><strong>${escapeHtml(source.communityLabel || node.communityLabel)}</strong></div>
     <div class="metric-line"><span>papel</span><strong>${escapeHtml(source.role || node.role)}</strong></div>
     <div class="metric-line"><span>grau total</span><strong>${formatNumber(source.totalDegree ?? (node.inDegree + node.outDegree))}</strong></div>
@@ -970,6 +1117,7 @@ function showTooltip(node, x, y) {
     ${node.communityLabel}<br />
     forca total: ${formatNumber(node.totalStrength)}<br />
     PageRank: ${node.pagerank.toFixed(6)}
+    ${nodeIsArticulationPoint(node) ? "<br />ponto de articulacao" : ""}
     ${state.influenceComputedFor ? `<br />ponte: ${formatNumber(node.bridgeWeight)}` : ""}
   `;
   tooltip.style.left = `${Math.min(state.width - 292, x + 14)}px`;
@@ -1054,6 +1202,19 @@ async function loadStructuralMetrics() {
 
 function buildStructuralMetricKey(row) {
   return `${row.layer}:${row.scope || "full"}`;
+}
+
+async function loadArticulationPoints() {
+  const response = await fetch(`./public/graph-articulation-points.json?v=${ASSET_VERSION}`);
+  if (!response.ok) throw new Error(`Falha ao carregar graph-articulation-points.json: ${response.status}`);
+  const payload = await response.json();
+  const points = new Map();
+  for (const [layer, scopes] of Object.entries(payload || {})) {
+    for (const [scope, nodes] of Object.entries(scopes || {})) {
+      points.set(`${layer}:${scope}`, new Set(nodes));
+    }
+  }
+  state.articulationPoints = points;
 }
 
 async function loadNodeProfiles(layer) {
@@ -1234,6 +1395,9 @@ function computeCheapMetrics(edges, nodeRows) {
 
   const nodeCount = nodeRows.length;
   const edgeCount = edges.length;
+  const articulationPoints = computeArticulationPointsFromAdjacency(undirectedAdjacency);
+  state.filteredArticulationPoints = articulationPoints;
+  state.filteredArticulationSignature = filteredArticulationSignature();
   const signedTotal = positiveLinks + negativeLinks;
   const topByTotalDegree = [...nodeRows]
     .sort((a, b) => (b.inDegree + b.outDegree) - (a.inDegree + a.outDegree))
@@ -1258,6 +1422,7 @@ function computeCheapMetrics(edges, nodeRows) {
     weakComponentCount: componentSizes.length,
     largestWeakComponent: componentSizes[0] || 0,
     largestWeakComponentShare: nodeCount ? (componentSizes[0] || 0) / nodeCount : 0,
+    articulationPointCount: articulationPoints.size,
     topByTotalDegree,
     topByTotalStrength,
   };
@@ -1436,6 +1601,7 @@ function structuralMetricTiles(metrics) {
         ${metricLine("numero de componentes conexas", formatNumber(metrics.weak_component_count))}
         ${metricLine("conectividade de vertice", formatNumber(metrics.vertex_connectivity))}
         ${metricLine("conectividade de aresta", formatNumber(metrics.edge_connectivity))}
+        ${metricLine("vertices de articulacao no banco", formatNumber(metrics.articulation_point_count))}
         ${metricLine("grau medio", formatDecimal(metrics.average_degree, 3))}
         ${metricLine("densidade", formatDecimal(metrics.density_directed, 5))}
         ${metricLine("centralidade de grau", formatDecimal(metrics.avg_degree_centrality, 6))}
@@ -1458,7 +1624,7 @@ function renderCheapMetrics(analysis) {
     ? `${componentScopeLabel()} | removidos ${formatNumber(scopeMeta.removedNodeCount)} vertices em ${formatNumber(scopeMeta.removedComponentCount)} componentes`
     : componentScopeLabel();
   els.cheapMetricsMeta.textContent = structuralMetrics
-    ? `${scopeText} | banco ${pathMetricLabel(structuralMetrics.path_metric_method)}`
+    ? `${scopeText} | ${formatNumber(metrics.articulationPointCount)} vertices de articulacao no filtro | banco ${pathMetricLabel(structuralMetrics.path_metric_method)}`
     : `${formatNumber(metrics.nodeCount)} vertices incidentes | filtro atual`;
   els.cheapMetricsPanel.innerHTML = `
     ${structuralMetricTiles(structuralMetrics)}
@@ -1476,6 +1642,7 @@ function renderCheapMetrics(analysis) {
       ${metricLine("conectado", metrics.weakComponentCount === 1 ? "sim" : "nao")}
       ${metricLine("componentes fracas", formatNumber(metrics.weakComponentCount))}
       ${metricLine("maior componente", `${formatNumber(metrics.largestWeakComponent)} (${pct.format(metrics.largestWeakComponentShare)})`)}
+      ${metricLine("vertices de articulacao no filtro", formatNumber(metrics.articulationPointCount))}
       ${metricLine("negatividade", pct.format(metrics.negativeShare))}
     </div>
     </section>
@@ -1494,148 +1661,6 @@ function renderCheapMetrics(analysis) {
       )}
     </div>
   `;
-}
-
-function analysisMapFocus(analysis) {
-  const query = els.searchInput.value.trim().toLowerCase();
-  const queryNode = query && state.nodeById.has(query) ? state.nodeById.get(query) : null;
-  const center = queryNode && nodeVisibleByRole(queryNode) ? queryNode : state.selectedNode;
-  const nodeSet = new Set();
-  let focusEdges = [];
-  let label = "top arestas";
-
-  if (center) {
-    const centerIndex = state.nodes.indexOf(center);
-    nodeSet.add(centerIndex);
-    focusEdges = analysis.filteredEdges.filter((edge) => edge.s === centerIndex || edge.t === centerIndex);
-    for (const edge of focusEdges) {
-      nodeSet.add(edge.s);
-      nodeSet.add(edge.t);
-    }
-    label = `ego de ${center.id}`;
-  } else if (state.selectedCommunity !== null && state.selectedCommunity !== undefined) {
-    const community = state.communities.find((item) => item.id === state.selectedCommunity);
-    focusEdges = analysis.filteredEdges.filter((edge) => {
-      const source = state.nodes[edge.s];
-      const target = state.nodes[edge.t];
-      return source?.community === state.selectedCommunity && target?.community === state.selectedCommunity;
-    });
-    for (const edge of focusEdges) {
-      nodeSet.add(edge.s);
-      nodeSet.add(edge.t);
-    }
-    for (const [index, node] of state.nodes.entries()) {
-      if (node.community === state.selectedCommunity && nodeVisibleByRole(node)) nodeSet.add(index);
-    }
-    label = community?.label || `comunidade ${state.selectedCommunity}`;
-  } else {
-    focusEdges = analysis.topEdges;
-    for (const edge of focusEdges) {
-      nodeSet.add(edge.s);
-      nodeSet.add(edge.t);
-    }
-  }
-
-  return { nodeSet, edges: focusEdges, label };
-}
-
-function drawAnalysisMap(analysis) {
-  const { ctx, width, height } = setupCanvas(els.analysisMapCanvas);
-  const focus = analysisMapFocus(analysis);
-  if (!focus.nodeSet.size) {
-    drawNoData(ctx, width, height, "sem subgrafo para o filtro atual");
-    els.analysisMapMeta.textContent = "sem dados";
-    return;
-  }
-
-  const bounds = state.data?.meta.bounds || currentBounds();
-  const dx = Math.max(1, bounds.maxX - bounds.minX);
-  const dy = Math.max(1, bounds.maxY - bounds.minY);
-  const scale = Math.min((width - 56) / dx, (height - 56) / dy);
-  const offsetX = width / 2 - ((bounds.minX + bounds.maxX) / 2) * scale;
-  const offsetY = height / 2 - ((bounds.minY + bounds.maxY) / 2) * scale;
-  const point = (node) => ({
-    x: node.x * scale + offsetX,
-    y: node.y * scale + offsetY,
-  });
-
-  ctx.save();
-  ctx.fillStyle = "#f8fafc";
-  ctx.fillRect(0, 0, width, height);
-
-  const contextEdges = analysis.topEdges.slice(0, Math.min(2200, analysis.topEdges.length));
-  ctx.lineWidth = 0.6;
-  for (const edge of contextEdges) {
-    const source = state.nodes[edge.s];
-    const target = state.nodes[edge.t];
-    if (!source || !target) continue;
-    const a = point(source);
-    const b = point(target);
-    ctx.strokeStyle = edge.n > edge.p ? "rgba(220,53,88,0.045)" : "rgba(83,118,217,0.05)";
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = "rgba(105,115,134,0.22)";
-  const nodeStep = Math.max(1, Math.ceil(state.nodes.length / 18000));
-  for (let index = 0; index < state.nodes.length; index += nodeStep) {
-    if (focus.nodeSet.has(index)) continue;
-    const node = state.nodes[index];
-    const p = point(node);
-    ctx.fillRect(p.x, p.y, 1.1, 1.1);
-  }
-
-  const maxWeight = focus.edges.reduce((currentMax, edge) => Math.max(currentMax, edge.w), 1);
-  const focusEdges = [...focus.edges].sort((a, b) => b.w - a.w).slice(0, 18000);
-  for (const edge of focusEdges) {
-    const source = state.nodes[edge.s];
-    const target = state.nodes[edge.t];
-    if (!source || !target) continue;
-    const a = point(source);
-    const b = point(target);
-    ctx.strokeStyle = edge.n > edge.p ? "rgba(220,53,88,0.34)" : "rgba(37,99,235,0.30)";
-    ctx.lineWidth = 0.45 + 3.2 * Math.sqrt(edge.w / maxWeight);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-  }
-
-  const focusNodes = [...focus.nodeSet]
-    .map((nodeIndex) => ({ nodeIndex, node: state.nodes[nodeIndex] }))
-    .filter((item) => item.node)
-    .sort((a, b) => b.node.totalStrength - a.node.totalStrength);
-  for (const { node } of focusNodes) {
-    const p = point(node);
-    ctx.fillStyle = nodeVisualColor(node);
-    ctx.strokeStyle = "rgba(17,24,39,0.55)";
-    ctx.lineWidth = 0.7;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, Math.max(2.6, Math.min(9, node.size * 0.62)), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = "#111827";
-  ctx.font = "800 11px Inter, Segoe UI, sans-serif";
-  ctx.textAlign = "center";
-  for (const { node } of focusNodes.slice(0, 14)) {
-    const p = point(node);
-    const selected = state.selectedNode === node;
-    if (selected) {
-      ctx.strokeStyle = "#111827";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, Math.max(8, node.size * 0.72), 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.fillText(node.id, p.x, p.y - 10);
-  }
-
-  ctx.restore();
-  els.analysisMapMeta.textContent = `${focus.label} | ${formatNumber(focus.nodeSet.size)} vertices | ${formatNumber(focus.edges.length)} arestas`;
 }
 
 function drawEgo(analysis) {
@@ -1708,71 +1733,6 @@ function drawEgo(analysis) {
   els.egoMeta.textContent = `${analysis.egoIncoming.length} entradas | ${analysis.egoOutgoing.length} saidas`;
 }
 
-function drawTopEdges(analysis) {
-  const { ctx, width, height } = setupCanvas(els.topEdgesCanvas);
-  const edges = analysis.topEdges;
-  if (!edges.length) {
-    drawNoData(ctx, width, height, "sem arestas filtradas");
-    return;
-  }
-
-  const nodeIds = new Set();
-  for (const edge of edges) {
-    nodeIds.add(edge.s);
-    nodeIds.add(edge.t);
-  }
-  const ids = [...nodeIds];
-  const center = { x: width / 2, y: height / 2 };
-  const radius = Math.max(80, Math.min(width, height) * 0.36);
-  const positions = new Map();
-  ids.forEach((nodeIndex, index) => {
-    const angle = (Math.PI * 2 * index) / ids.length - Math.PI / 2;
-    positions.set(nodeIndex, {
-      x: center.x + radius * Math.cos(angle),
-      y: center.y + radius * Math.sin(angle),
-    });
-  });
-
-  const maxWeight = edges.reduce((currentMax, edge) => Math.max(currentMax, edge.w), 1);
-  ctx.save();
-  for (const edge of edges) {
-    const a = positions.get(edge.s);
-    const b = positions.get(edge.t);
-    if (!a || !b) continue;
-    ctx.strokeStyle = edge.n > edge.p ? "rgba(220,53,88,0.20)" : "rgba(83,118,217,0.18)";
-    ctx.lineWidth = 0.5 + 4 * Math.sqrt(edge.w / maxWeight);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-  }
-  for (const nodeIndex of ids) {
-    const node = state.nodes[nodeIndex];
-    const position = positions.get(nodeIndex);
-    ctx.fillStyle = node?.color || "#5376d9";
-    ctx.strokeStyle = "#1f2937";
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, Math.max(3, Math.min(12, (node?.size || 4) * 0.7)), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-  const labelNodes = ids
-    .map((nodeIndex) => state.nodes[nodeIndex])
-    .filter(Boolean)
-    .sort((a, b) => b.totalStrength - a.totalStrength)
-    .slice(0, 14);
-  ctx.fillStyle = "#111827";
-  ctx.font = "800 11px Inter, Segoe UI, sans-serif";
-  ctx.textAlign = "center";
-  for (const node of labelNodes) {
-    const position = positions.get(state.nodes.indexOf(node));
-    if (position) ctx.fillText(node.id, position.x, position.y - 12);
-  }
-  ctx.restore();
-  els.topEdgesMeta.textContent = `${formatNumber(edges.length)} arestas | ${formatNumber(ids.length)} vertices`;
-}
-
 async function runAnalysis() {
   if (!state.edges.length) {
     state.edges = await loadEdges(state.layer);
@@ -1781,9 +1741,7 @@ async function runAnalysis() {
   els.analysisTitle.textContent = `Camada ${state.layer} | ${componentScopeLabel()} | ${roleFilterLabel()} | sinal ${state.sentiment} | peso >= ${state.minWeight} | ${timelineLabel()}`;
   renderCheapMetrics(state.lastAnalysis);
   drawDistributions(state.lastAnalysis);
-  drawAnalysisMap(state.lastAnalysis);
   drawEgo(state.lastAnalysis);
-  drawTopEdges(state.lastAnalysis);
   updateStats();
 }
 
@@ -2667,11 +2625,6 @@ function attachEvents() {
     if (state.mode === "analysis") runAnalysis();
     draw();
   });
-  els.topEdgesInput.addEventListener("input", () => {
-    state.topEdgesLimit = Number(els.topEdgesInput.value);
-    els.topEdgesOutput.textContent = state.topEdgesLimit;
-    if (state.mode === "analysis") runAnalysis();
-  });
   els.edgesToggle.addEventListener("change", async () => {
     state.showEdges = els.edgesToggle.checked;
     if (state.showEdges && state.edges.length === 0) {
@@ -2684,6 +2637,11 @@ function attachEvents() {
   });
   els.labelsToggle.addEventListener("change", () => {
     state.showLabels = els.labelsToggle.checked;
+    draw();
+  });
+  els.articulationToggle.addEventListener("change", () => {
+    state.showArticulationPoints = els.articulationToggle.checked;
+    if (state.mode === "analysis") runAnalysis();
     draw();
   });
   els.searchButton.addEventListener("click", searchNode);
@@ -2728,6 +2686,7 @@ async function init() {
   if (!response.ok) throw new Error(`Falha ao carregar graph-core.json: ${response.status}`);
   state.data = await response.json();
   await loadStructuralMetrics();
+  await loadArticulationPoints();
   state.nodes = state.data.nodes;
   state.nodes.forEach((node, index) => {
     node.index = index;
@@ -2766,6 +2725,7 @@ window.redditGraphApp = {
     sentiment: state.sentiment,
     roleFilter: state.roleFilter,
     componentScope: state.componentScope,
+    showArticulationPoints: state.showArticulationPoints,
     timeWindowIndex: state.timeWindowIndex,
     timelineSource: state.timelineSource,
     minWeight: state.minWeight,
@@ -2774,6 +2734,7 @@ window.redditGraphApp = {
     edges: state.edges.length,
     hasAnalysis: Boolean(state.lastAnalysis),
     structuralMetricLayers: state.structuralMetrics.size,
+    articulationPointLayers: state.articulationPoints.size,
     profileLayersLoaded: state.nodeProfileCache.size,
     compareResults: state.compareResults.length,
   }),
